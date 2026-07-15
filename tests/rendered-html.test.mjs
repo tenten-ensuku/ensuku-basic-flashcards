@@ -1,0 +1,48 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+async function render() {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+
+  return worker.fetch(
+    new Request("http://localhost/", {
+      headers: { accept: "text/html" },
+    }),
+    {
+      ASSETS: {
+        fetch: async () => new Response("Not found", { status: 404 }),
+      },
+    },
+    {
+      waitUntil() {},
+      passThroughOnException() {},
+    },
+  );
+}
+
+test("renders the production flashcard home screen", async () => {
+  const response = await render();
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+
+  const html = await response.text();
+  assert.match(html, /<html lang="ja">/i);
+  assert.match(html, /<title>一向聴 基礎講義フラッシュカード<\/title>/i);
+  assert.match(html, /一向聴 基礎講義フラッシュカード/);
+  assert.match(html, /ver(?:<!-- -->)?1/);
+  assert.match(html, /ランダム10問/);
+  assert.match(html, /全50問/);
+  assert.match(html, /苦手カードのみ/);
+  assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
+});
+
+test("publishes the expected social metadata", async () => {
+  const response = await render();
+  const html = await response.text();
+  assert.match(html, /property="og:title" content="一向聴 基礎講義フラッシュカード"/);
+  assert.match(html, /property="og:image" content="\/og-card\.png"/);
+  assert.match(html, /name="twitter:card" content="summary_large_image"/);
+  assert.match(html, /name="theme-color" content="#0c4f3d"/);
+});
