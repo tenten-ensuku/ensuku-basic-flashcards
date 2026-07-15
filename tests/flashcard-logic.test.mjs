@@ -15,8 +15,8 @@ import {
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships two 50-card lessons as ver10", () => {
-  assert.equal(APP_VERSION, 10);
+test("ships two 50-card lessons as ver11", () => {
+  assert.equal(APP_VERSION, 11);
   assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v4");
   assert.equal(LEGACY_STORAGE_KEY, "ensuku-basic-flashcards-v3");
   assert.equal(FLASHCARDS.length, 50);
@@ -55,7 +55,7 @@ test("ships two 50-card lessons as ver10", () => {
   assert.equal(FLASHCARDS[7].question, "ヘッドレス2型と相性が良いのは？");
   assert.equal(FLASHCARDS[8].answer, "順子とターツがくっついた5枚形。");
   assert.equal(FLASHCARDS[20].answer, "のべタン、亜両面、アンチョビ");
-  assert.equal(FLASHCARDS[23].question, "2234ｍのような□×はなんと");
+  assert.equal(FLASHCARDS[23].question, "2234ｍのような□×はなんという名称で呼ばれる形？");
   assert.equal(FLASHCARDS[29].question, "23456ｍは何待ち？");
   assert.equal(FLASHCARDS[29].answer, "147ｍ待ち");
   assert.equal(FLASHCARDS[30].answer, "孤立牌がターツをフォローしている2面子型一向聴。");
