@@ -508,7 +508,10 @@ summary:focus-visible {
   font-weight: 800;
   line-height: 1.55;
   text-align: center;
-  text-wrap: balance;
+  line-break: strict;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  word-break: normal;
   white-space: pre-wrap;
 }
 
@@ -618,8 +621,12 @@ summary:focus-visible {
   color: #17624f;
   font-size: clamp(1rem, 4.3vw, 1.42rem);
   font-weight: 900;
+  line-break: strict;
   line-height: 1.45;
+  overflow-wrap: anywhere;
   text-align: center;
+  text-wrap: pretty;
+  word-break: normal;
   white-space: pre-wrap;
 }
 
@@ -900,6 +907,13 @@ summary:focus-visible {
   line-height: 1.5;
 }
 
+.question-row summary > span:nth-child(2) {
+  line-break: strict;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  word-break: normal;
+}
+
 .question-row summary::-webkit-details-marker {
   display: none;
 }
@@ -948,8 +962,21 @@ summary:focus-visible {
   color: #17624f;
   font-size: 0.88rem;
   font-weight: 800;
+  line-break: strict;
   line-height: 1.55;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  word-break: normal;
   white-space: pre-wrap;
+}
+
+@supports (word-break: auto-phrase) {
+  .question-text,
+  .answer-block p,
+  .question-row summary > span:nth-child(2),
+  .list-answer p {
+    word-break: auto-phrase;
+  }
 }
 
 .question-row .tile-image {

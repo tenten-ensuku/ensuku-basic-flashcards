@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import {
   APP_VERSION,
@@ -15,8 +15,8 @@ import {
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships two 50-card lessons as ver9", () => {
-  assert.equal(APP_VERSION, 9);
+test("ships two 50-card lessons as ver10", () => {
+  assert.equal(APP_VERSION, 10);
   assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v4");
   assert.equal(LEGACY_STORAGE_KEY, "ensuku-basic-flashcards-v3");
   assert.equal(FLASHCARDS.length, 50);
@@ -68,6 +68,13 @@ test("ships two 50-card lessons as ver9", () => {
   assert.equal(NEJIMAKI_FLASHCARDS[24].answer, "6期生ずぴたーさん");
   assert.equal(NEJIMAKI_FLASHCARDS[31].question.includes("24456ｍ"), true);
   assert.equal(NEJIMAKI_FLASHCARDS[44].question.includes("11ｍ"), true);
+});
+
+test("uses Japanese phrase-aware wrapping for card copy", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /@supports \(word-break: auto-phrase\)/);
+  assert.match(css, /\.question-text,[\s\S]*word-break: auto-phrase/);
+  assert.doesNotMatch(css, /\.question-text\s*\{[^}]*text-wrap:\s*balance/s);
 });
 
 test("creates ordered and isolated sessions for both lessons", () => {
