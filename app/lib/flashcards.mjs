@@ -1,4 +1,4 @@
-export const APP_VERSION = 5;
+export const APP_VERSION = 6;
 export const STORAGE_KEY = "ensuku-basic-flashcards-v4";
 export const LEGACY_STORAGE_KEY = "ensuku-basic-flashcards-v3";
 
@@ -56,7 +56,7 @@ export const FLASHCARDS = Object.freeze([
   { id: 47, question: "5枚の連続形（三面張）にスキップ牌がついた形を何という?", answer: "三面張スキップ形" },
   { id: 48, question: "ヘッドレス1型の際の注意すべき形、両面スキップ形は受け入れをどのように答えられる？", answer: "両面2筋で格好良く！" },
   { id: 49, question: "ヘッドレス1型の際に3面張スキップ形は、受け入れをどのように答えられる？", answer: "三面張2筋で格好良く！\n例、134567ｍ→受け入れ147ｍ258ｍ　と答えられる。（ヘッドレス1型でのみなので注意）" },
-  { id: 50, question: "何を引けば聴牌する？\n1234ｍ245678ｐ發發發", answer: "牌姿\n1234ｍ245678ｐ發發發\n受け入れ\n14ｍ、258ｐ369ｐ" },
+  { id: 50, question: "何を引けば聴牌する？\n1234ｍ245678ｐ発発発", answer: "牌姿\n1234ｍ245678ｐ発発発\n受け入れ\n14ｍ、258ｐ369ｐ" },
 ]);
 
 /** @type {ReadonlyArray<Flashcard>} */

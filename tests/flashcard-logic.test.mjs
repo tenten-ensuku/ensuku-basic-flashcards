@@ -15,8 +15,8 @@ import {
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships two 50-card lessons as ver5", () => {
-  assert.equal(APP_VERSION, 5);
+test("ships two 50-card lessons as ver6", () => {
+  assert.equal(APP_VERSION, 6);
   assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v4");
   assert.equal(LEGACY_STORAGE_KEY, "ensuku-basic-flashcards-v3");
   assert.equal(FLASHCARDS.length, 50);
@@ -60,6 +60,9 @@ test("ships two 50-card lessons as ver5", () => {
   assert.equal(FLASHCARDS[29].answer, "147ｍ待ち");
   assert.equal(FLASHCARDS[30].answer, "孤立牌がターツをフォローしている2面子型一向聴。");
   assert.equal(FLASHCARDS[49].question.includes("1234ｍ245678ｐ"), true);
+  assert.equal(FLASHCARDS[49].question.includes("発発発"), true);
+  assert.equal(FLASHCARDS[49].answer.includes("発発発"), true);
+  assert.equal(allText.includes("發"), false);
 
   assert.equal(NEJIMAKI_FLASHCARDS[24].question, "アンチョビ形の名付け親は何期生のだれ？");
   assert.equal(NEJIMAKI_FLASHCARDS[24].answer, "6期生ずぴたーさん");
@@ -85,6 +88,7 @@ test("includes the approved tile assets for every numbered suit", () => {
       assert.equal(existsSync(`public/tiles/${prefix}${digit}-66-90-l.png`), true);
     }
   }
+  assert.equal(existsSync("public/tiles/ji5-66-90-l.png"), true);
 });
 
 test("adds and removes review cards without duplicates", () => {

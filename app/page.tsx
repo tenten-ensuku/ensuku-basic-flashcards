@@ -54,8 +54,12 @@ function tilePath(suit: Suit, digit: string) {
   return `/tiles/${SUITS[suit].prefix}${digit}-66-90-l.png`;
 }
 
+function honorTilePath() {
+  return "/tiles/ji5-66-90-l.png";
+}
+
 function MahjongText({ text }: { text: string }) {
-  const pattern = /([1-9１-９]+)[ \u3000]*([mpsｍｐｓ])/giu;
+  const pattern = /([1-9１-９]+)[ \u3000]*([mpsｍｐｓ])|([発發]+)/giu;
   const parts: React.ReactNode[] = [];
   let cursor = 0;
   let match: RegExpExecArray | null;
@@ -63,20 +67,26 @@ function MahjongText({ text }: { text: string }) {
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > cursor) parts.push(text.slice(cursor, match.index));
 
-    const digits = normalizeDigits(match[1]);
-    const suit = match[2].normalize("NFKC").toLowerCase() as Suit;
+    const isHonorRun = Boolean(match[3]);
+    const digits = isHonorRun ? "" : normalizeDigits(match[1]);
+    const suit = isHonorRun ? null : match[2].normalize("NFKC").toLowerCase() as Suit;
+    const tiles = isHonorRun ? [...match[3]].map(() => "発") : digits.split("");
     parts.push(
-      <span className="tile-run" key={`${match.index}-${match[0]}`} aria-label={`${digits}${suit}`}>
-        {digits.split("").map((digit, index) => (
-          <span className="tile-slot" key={`${digit}-${index}`}>
+      <span
+        className="tile-run"
+        key={`${match.index}-${match[0]}`}
+        aria-label={isHonorRun ? tiles.join("") : `${digits}${suit}`}
+      >
+        {tiles.map((tile, index) => (
+          <span className="tile-slot" key={`${tile}-${index}`}>
             {/* Approved tile PNGs keep their original 66×90 dimensions. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               className="tile-image"
-              src={tilePath(suit, digit)}
+              src={isHonorRun ? honorTilePath() : tilePath(suit as Suit, tile)}
               width="66"
               height="90"
-              alt={`${digit}${SUITS[suit].label}`}
+              alt={isHonorRun ? "発" : `${tile}${SUITS[suit as Suit].label}`}
               loading="eager"
               onError={(event) => {
                 event.currentTarget.hidden = true;
@@ -85,7 +95,7 @@ function MahjongText({ text }: { text: string }) {
               }}
             />
             <span className="tile-fallback" hidden aria-hidden="true">
-              {digit}{suit}
+              {isHonorRun ? "発" : `${tile}${suit}`}
             </span>
           </span>
         ))}
@@ -167,6 +177,8 @@ export default function Home() {
         image.src = tilePath(suit, String(digit));
       }
     }
+    const honorImage = new window.Image();
+    honorImage.src = honorTilePath();
   }, []);
 
   useEffect(() => {
