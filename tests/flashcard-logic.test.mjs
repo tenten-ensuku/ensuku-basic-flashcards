@@ -15,8 +15,8 @@ import {
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships two 50-card lessons as ver11", () => {
-  assert.equal(APP_VERSION, 11);
+test("ships two 50-card lessons as ver12", () => {
+  assert.equal(APP_VERSION, 12);
   assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v4");
   assert.equal(LEGACY_STORAGE_KEY, "ensuku-basic-flashcards-v3");
   assert.equal(FLASHCARDS.length, 50);
@@ -85,6 +85,10 @@ test("creates ordered and isolated sessions for both lessons", () => {
   const review = createSessionCards("nejimaki", "review", [30, 3, 9]);
   assert.deepEqual(review.map(({ id }) => id), [3, 9, 30]);
   assert.equal(review[0].question, NEJIMAKI_FLASHCARDS[2].question);
+  const editedCards = FLASHCARDS.map((card) => card.id === 24
+    ? { ...card, question: "管理画面で編集した問題" }
+    : card);
+  assert.equal(createSessionCards("tenten", "all", [], editedCards)[23].question, "管理画面で編集した問題");
   assert.throws(() => createSessionCards("missing", "all"), /Unknown lesson/);
   assert.throws(() => createSessionCards("tenten", "quick"), /Unknown session mode/);
 });

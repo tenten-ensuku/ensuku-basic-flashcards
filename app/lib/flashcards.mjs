@@ -1,4 +1,4 @@
-export const APP_VERSION = 11;
+export const APP_VERSION = 12;
 export const STORAGE_KEY = "ensuku-basic-flashcards-v4";
 export const LEGACY_STORAGE_KEY = "ensuku-basic-flashcards-v3";
 
@@ -122,14 +122,16 @@ export const LESSONS = Object.freeze({
  * @param {keyof typeof LESSONS} lessonId
  * @param {SessionMode} mode
  * @param {number[]} reviewCardIds
+ * @param {ReadonlyArray<Flashcard>} cards
  */
-export function createSessionCards(lessonId, mode, reviewCardIds = []) {
+export function createSessionCards(lessonId, mode, reviewCardIds = [], cards) {
   const lesson = LESSONS[lessonId];
   if (!lesson) throw new RangeError(`Unknown lesson: ${lessonId}`);
-  if (mode === "all") return [...lesson.cards];
+  const sourceCards = cards ?? lesson.cards;
+  if (mode === "all") return [...sourceCards];
   if (mode === "review") {
     const reviewSet = new Set(reviewCardIds);
-    return lesson.cards.filter((card) => reviewSet.has(card.id));
+    return sourceCards.filter((card) => reviewSet.has(card.id));
   }
   throw new RangeError(`Unknown session mode: ${mode}`);
 }

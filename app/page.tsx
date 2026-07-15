@@ -13,11 +13,13 @@ import {
   updateReviewIds,
 } from "./lib/flashcards.mjs";
 
-type Screen = "home" | "session" | "result" | "list";
+type Screen = "home" | "session" | "result" | "list" | "admin-login" | "admin";
 type SessionMode = "all" | "review";
 type Rating = "known" | "again";
 type LessonId = keyof typeof LESSONS;
 type Flashcard = { id: number; question: string; answer: string };
+type CardsByLesson = Record<LessonId, Flashcard[]>;
+type CardOverride = Flashcard & { lessonId: LessonId };
 type ReviewCardIdsByLesson = Record<LessonId, number[]>;
 type LastSession = {
   lessonId: LessonId;
@@ -45,6 +47,34 @@ const SUITS: Record<Suit, { prefix: string; label: string }> = {
 };
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const ADMIN_API_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? "";
+
+function cloneBaseCards(): CardsByLesson {
+  return {
+    tenten: LESSONS.tenten.cards.map((card) => ({ ...card })),
+    nejimaki: LESSONS.nejimaki.cards.map((card) => ({ ...card })),
+  };
+}
+
+function withOverrides(overrides: CardOverride[]): CardsByLesson {
+  const cards = cloneBaseCards();
+  for (const override of overrides) {
+    if (!(override.lessonId in cards)) continue;
+    const index = cards[override.lessonId].findIndex((card) => card.id === override.id);
+    if (index >= 0 && override.question && override.answer) {
+      cards[override.lessonId][index] = {
+        id: override.id,
+        question: override.question,
+        answer: override.answer,
+      };
+    }
+  }
+  return cards;
+}
+
+function adminApiPath(path: string) {
+  return `${ADMIN_API_BASE_URL}${path}`;
+}
 
 function normalizeDigits(value: string) {
   return value.replace(/[１-９]/g, (digit) =>
@@ -138,6 +168,13 @@ function HomeHeader({ compact = false }: { compact?: boolean }) {
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
+  const [cardsByLesson, setCardsByLesson] = useState<CardsByLesson>(cloneBaseCards);
+  const [adminDrafts, setAdminDrafts] = useState<CardsByLesson>(cloneBaseCards);
+  const [adminLesson, setAdminLesson] = useState<LessonId>("tenten");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminError, setAdminError] = useState("");
+  const [adminNotice, setAdminNotice] = useState("");
+  const [adminBusyCard, setAdminBusyCard] = useState<number | null>(null);
   const [reviewCardIdsByLesson, setReviewCardIdsByLesson] = useState<ReviewCardIdsByLesson>({
     tenten: [],
     nejimaki: [],
@@ -154,6 +191,25 @@ export default function Home() {
   const [isAdvancing, setIsAdvancing] = useState(false);
   const startedAtRef = useRef(0);
   const resultRef = useRef<LastSession | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(adminApiPath("/api/cards"), { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("問題データを取得できませんでした。");
+        return response.json() as Promise<{ overrides?: CardOverride[] }>;
+      })
+      .then(({ overrides = [] }) => {
+        const nextCards = withOverrides(overrides);
+        setCardsByLesson(nextCards);
+        setAdminDrafts(nextCards);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        // APIに接続できない場合も、収録済みの問題で学習を続けられる。
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -202,7 +258,12 @@ export default function Home() {
 
   const startSession = useCallback(
     (lessonId: LessonId, mode: SessionMode) => {
-      const cards = createSessionCards(lessonId, mode, reviewCardIdsByLesson[lessonId]) as Flashcard[];
+      const cards = createSessionCards(
+        lessonId,
+        mode,
+        reviewCardIdsByLesson[lessonId],
+        cardsByLesson[lessonId],
+      ) as Flashcard[];
       if (cards.length === 0) return;
       setSelectedLesson(lessonId);
       setSessionMode(mode);
@@ -217,8 +278,118 @@ export default function Home() {
       startedAtRef.current = Date.now();
       setScreen("session");
     },
-    [reviewCardIdsByLesson],
+    [cardsByLesson, reviewCardIdsByLesson],
   );
+
+  const openAdminLogin = () => {
+    setAdminPassword("");
+    setAdminError("");
+    setAdminNotice("");
+    setScreen("admin-login");
+  };
+
+  const loginToAdmin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAdminError("");
+    setAdminNotice("");
+    setAdminBusyCard(0);
+    try {
+      const response = await fetch(adminApiPath("/api/admin/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "ログインできませんでした。");
+      setAdminDrafts({
+        tenten: cardsByLesson.tenten.map((card) => ({ ...card })),
+        nejimaki: cardsByLesson.nejimaki.map((card) => ({ ...card })),
+      });
+      setScreen("admin");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "ログインできませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const updateAdminDraft = (lessonId: LessonId, cardId: number, field: "question" | "answer", value: string) => {
+    setAdminDrafts((current) => ({
+      ...current,
+      [lessonId]: current[lessonId].map((card) =>
+        card.id === cardId ? { ...card, [field]: value } : card,
+      ),
+    }));
+  };
+
+  const saveAdminCard = async (lessonId: LessonId, card: Flashcard) => {
+    setAdminError("");
+    setAdminNotice("");
+    setAdminBusyCard(card.id);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/cards/${lessonId}/${card.id}`), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Password": adminPassword,
+        },
+        body: JSON.stringify({ question: card.question, answer: card.answer }),
+      });
+      const payload = await response.json() as { error?: string; card?: Flashcard };
+      if (!response.ok || !payload.card) throw new Error(payload.error ?? "保存できませんでした。");
+      const savedCard = payload.card;
+      setCardsByLesson((current) => ({
+        ...current,
+        [lessonId]: current[lessonId].map((item) => item.id === card.id ? savedCard : item),
+      }));
+      setAdminDrafts((current) => ({
+        ...current,
+        [lessonId]: current[lessonId].map((item) => item.id === card.id ? savedCard : item),
+      }));
+      setAdminNotice(`Q${String(card.id).padStart(2, "0")}を保存しました。`);
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "保存できませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const restoreAdminCard = async (lessonId: LessonId, cardId: number) => {
+    setAdminError("");
+    setAdminNotice("");
+    setAdminBusyCard(cardId);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/cards/${lessonId}/${cardId}`), {
+        method: "DELETE",
+        headers: { "X-Admin-Password": adminPassword },
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "初期文に戻せませんでした。");
+      const baseCard = LESSONS[lessonId].cards.find((card) => card.id === cardId);
+      if (!baseCard) throw new Error("初期データが見つかりません。");
+      const restoredCard = { ...baseCard };
+      setCardsByLesson((current) => ({
+        ...current,
+        [lessonId]: current[lessonId].map((item) => item.id === cardId ? restoredCard : item),
+      }));
+      setAdminDrafts((current) => ({
+        ...current,
+        [lessonId]: current[lessonId].map((item) => item.id === cardId ? restoredCard : item),
+      }));
+      setAdminNotice(`Q${String(cardId).padStart(2, "0")}を初期文に戻しました。`);
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "初期文に戻せませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const leaveAdmin = () => {
+    setAdminPassword("");
+    setAdminError("");
+    setAdminNotice("");
+    setScreen("home");
+  };
 
   const rateCard = useCallback(
     (rating: Rating) => {
@@ -407,6 +578,141 @@ export default function Home() {
                 <strong>{lastSession.rank}</strong>
               </p>
             )}
+            <button
+              className="admin-entry-button"
+              onClick={openAdminLogin}
+              data-testid="open-admin"
+            >
+              <span aria-hidden="true">⚙</span> 管理画面
+            </button>
+          </div>
+        </section>
+      )}
+
+      {screen === "admin-login" && (
+        <section className="screen screen--admin-login" aria-labelledby="admin-login-title">
+          <div className="admin-login-panel">
+            <button className="icon-button" onClick={() => setScreen("home")} aria-label="ホームへ戻る">
+              ←
+            </button>
+            <p className="section-kicker">ADMINISTRATION</p>
+            <h2 id="admin-login-title">管理画面</h2>
+            <p>問題文・解答文を編集するには、管理パスワードを入力してください。</p>
+            <form className="admin-login-form" onSubmit={loginToAdmin}>
+              <label htmlFor="admin-password">管理パスワード</label>
+              <input
+                id="admin-password"
+                type="password"
+                autoComplete="current-password"
+                value={adminPassword}
+                onChange={(event) => setAdminPassword(event.target.value)}
+                required
+                autoFocus
+                data-testid="admin-password"
+              />
+              {adminError && <p className="admin-message admin-message--error" role="alert">{adminError}</p>}
+              <button className="primary-button" type="submit" disabled={adminBusyCard !== null} data-testid="admin-login">
+                {adminBusyCard !== null ? "確認中…" : "管理画面へ進む"}
+              </button>
+            </form>
+          </div>
+        </section>
+      )}
+
+      {screen === "admin" && (
+        <section className="screen screen--admin" aria-labelledby="admin-title">
+          <div className="admin-top">
+            <button className="icon-button" onClick={leaveAdmin} aria-label="管理画面を終了">
+              ←
+            </button>
+            <div>
+              <p className="section-kicker">ADMINISTRATION</p>
+              <h2 id="admin-title">問題・解答の編集</h2>
+            </div>
+            <button className="admin-logout-button" onClick={leaveAdmin}>終了</button>
+          </div>
+
+          <p className="admin-lead">
+            保存した内容は公開中の問題集へ反映されます。牌表記は「2234ｍ」「456p」のように入力してください。
+          </p>
+
+          <div className="admin-lesson-tabs" role="tablist" aria-label="授業を選択">
+            {(Object.keys(LESSONS) as LessonId[]).map((lessonId) => (
+              <button
+                key={lessonId}
+                type="button"
+                role="tab"
+                aria-selected={adminLesson === lessonId}
+                className={adminLesson === lessonId ? "is-active" : ""}
+                onClick={() => {
+                  setAdminLesson(lessonId);
+                  setAdminError("");
+                  setAdminNotice("");
+                }}
+              >
+                {LESSONS[lessonId].label}
+              </button>
+            ))}
+          </div>
+
+          {(adminError || adminNotice) && (
+            <p className={`admin-message ${adminError ? "admin-message--error" : "admin-message--success"}`} role="status">
+              {adminError || adminNotice}
+            </p>
+          )}
+
+          <div className="admin-card-list">
+            {adminDrafts[adminLesson].map((card) => {
+              const isChanged = card.question !== cardsByLesson[adminLesson][card.id - 1]?.question
+                || card.answer !== cardsByLesson[adminLesson][card.id - 1]?.answer;
+              const hasOverride = cardsByLesson[adminLesson][card.id - 1]?.question !== LESSONS[adminLesson].cards[card.id - 1]?.question
+                || cardsByLesson[adminLesson][card.id - 1]?.answer !== LESSONS[adminLesson].cards[card.id - 1]?.answer;
+              return (
+                <details className="admin-card-editor" key={`${adminLesson}-${card.id}`}>
+                  <summary>
+                    <span>Q{String(card.id).padStart(2, "0")}</span>
+                    <strong>{card.question || "（問題文未入力）"}</strong>
+                    {hasOverride && <small>編集済み</small>}
+                    <i aria-hidden="true">＋</i>
+                  </summary>
+                  <div className="admin-card-form">
+                    <label htmlFor={`question-${adminLesson}-${card.id}`}>問題文</label>
+                    <textarea
+                      id={`question-${adminLesson}-${card.id}`}
+                      value={card.question}
+                      onChange={(event) => updateAdminDraft(adminLesson, card.id, "question", event.target.value)}
+                      rows={4}
+                    />
+                    <label htmlFor={`answer-${adminLesson}-${card.id}`}>解答文</label>
+                    <textarea
+                      id={`answer-${adminLesson}-${card.id}`}
+                      value={card.answer}
+                      onChange={(event) => updateAdminDraft(adminLesson, card.id, "answer", event.target.value)}
+                      rows={6}
+                    />
+                    <div className="admin-card-actions">
+                      <button
+                        type="button"
+                        className="admin-restore-button"
+                        onClick={() => restoreAdminCard(adminLesson, card.id)}
+                        disabled={adminBusyCard !== null || !hasOverride}
+                      >
+                        初期文に戻す
+                      </button>
+                      <button
+                        type="button"
+                        className="admin-save-button"
+                        onClick={() => saveAdminCard(adminLesson, card)}
+                        disabled={adminBusyCard !== null || !isChanged || !card.question.trim() || !card.answer.trim()}
+                        data-testid={`save-${adminLesson}-${card.id}`}
+                      >
+                        {adminBusyCard === card.id ? "保存中…" : "この問題を保存"}
+                      </button>
+                    </div>
+                  </div>
+                </details>
+              );
+            })}
           </div>
         </section>
       )}
@@ -583,7 +889,7 @@ export default function Home() {
           </p>
 
           <div className="question-list">
-            {LESSONS[selectedLesson].cards.map((card) => (
+            {cardsByLesson[selectedLesson].map((card) => (
               <details
                 key={card.id}
                 className={reviewSet.has(card.id) ? "question-row question-row--review" : "question-row"}
