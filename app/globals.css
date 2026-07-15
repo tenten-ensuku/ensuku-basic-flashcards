@@ -1,21 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --felt: #0c4f3d;
-  --felt-dark: #07392e;
-  --panel: #111411;
-  --panel-2: #191c18;
-  --cream: #f4ead1;
-  --muted: #b8ad93;
-  --gold: #d9b86c;
-  --gold-bright: #f0d58b;
-  --orange: #ef7b32;
-  --orange-dark: #b74f1e;
-  --purple: #7654b5;
-  --purple-dark: #4c367b;
-  --green-light: #5fbf88;
-  --line: rgba(217, 184, 108, 0.2);
-  --shadow: 0 22px 55px rgba(0, 0, 0, 0.34);
+  --felt: #48d6b0;
+  --felt-dark: #12a98b;
+  --panel: #fffaf2;
+  --panel-2: #ffffff;
+  --cream: #173f37;
+  --muted: #607a73;
+  --gold: #0b8f75;
+  --gold-bright: #08715f;
+  --orange: #ff7e61;
+  --orange-dark: #e85f45;
+  --purple: #9d88f5;
+  --purple-dark: #725bd4;
+  --green-light: #0a9b76;
+  --line: rgba(20, 86, 73, 0.14);
+  --shadow: 0 18px 46px rgba(9, 91, 73, 0.18);
 }
 
 * {
@@ -59,8 +59,9 @@ summary:focus-visible {
   min-height: 100svh;
   overflow: hidden;
   background:
-    radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.06), transparent 28%),
-    radial-gradient(circle at 85% 85%, rgba(0, 0, 0, 0.2), transparent 35%),
+    radial-gradient(circle at 10% 8%, rgba(255, 246, 178, 0.72), transparent 24%),
+    radial-gradient(circle at 92% 20%, rgba(255, 153, 125, 0.38), transparent 25%),
+    radial-gradient(circle at 82% 88%, rgba(157, 136, 245, 0.3), transparent 30%),
     linear-gradient(135deg, var(--felt), var(--felt-dark));
 }
 
@@ -69,7 +70,7 @@ summary:focus-visible {
   z-index: 0;
   inset: 0;
   pointer-events: none;
-  opacity: 0.3;
+  opacity: 0.16;
   background-image:
     repeating-linear-gradient(37deg, transparent 0 2px, rgba(255, 255, 255, 0.018) 2px 3px),
     repeating-linear-gradient(117deg, transparent 0 3px, rgba(0, 0, 0, 0.025) 3px 4px);
@@ -102,12 +103,12 @@ summary:focus-visible {
   width: 48px;
   height: 48px;
   place-items: center;
-  border: 1px solid rgba(240, 213, 139, 0.7);
-  border-radius: 13px;
-  background: rgba(12, 23, 18, 0.72);
-  color: var(--gold-bright);
-  box-shadow: inset 0 0 0 4px rgba(217, 184, 108, 0.08);
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #fff8d8, #ffffff);
+  color: #08715f;
+  box-shadow: 0 8px 20px rgba(8, 113, 95, 0.18);
+  font-family: inherit;
   font-size: 1.5rem;
   font-weight: 800;
 }
@@ -116,7 +117,7 @@ summary:focus-visible {
 .section-kicker,
 .hero-kicker {
   margin: 0 0 3px;
-  color: var(--gold);
+  color: #075f50;
   font-size: 0.64rem;
   font-weight: 800;
   letter-spacing: 0.18em;
@@ -124,7 +125,7 @@ summary:focus-visible {
 
 .brand h1 {
   margin: 0;
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-family: inherit;
   font-size: clamp(1rem, 4vw, 1.4rem);
   font-weight: 800;
   line-height: 1.32;
@@ -132,10 +133,11 @@ summary:focus-visible {
 
 .version {
   align-self: start;
-  border: 1px solid rgba(217, 184, 108, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 999px;
   padding: 4px 8px;
-  color: var(--gold);
+  background: rgba(255, 255, 255, 0.72);
+  color: #075f50;
   font-size: 0.68rem;
   font-weight: 800;
 }
@@ -145,9 +147,7 @@ summary:focus-visible {
 .result-panel {
   border: 1px solid var(--line);
   border-radius: 24px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.025), transparent 30%),
-    var(--panel);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(255, 250, 226, 0.96));
   box-shadow: var(--shadow);
 }
 
@@ -164,7 +164,7 @@ summary:focus-visible {
 .hero-copy h2 {
   margin: 6px 0 12px;
   color: var(--cream);
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-family: inherit;
   font-size: clamp(1.65rem, 7vw, 2.7rem);
   line-height: 1.24;
   letter-spacing: 0.03em;
@@ -184,11 +184,11 @@ summary:focus-visible {
   width: 150px;
   height: 150px;
   align-content: center;
-  border: 1px solid rgba(217, 184, 108, 0.38);
+  border: 2px solid rgba(8, 143, 117, 0.22);
   border-radius: 50%;
   background:
-    radial-gradient(circle, rgba(217, 184, 108, 0.13), transparent 58%),
-    rgba(0, 0, 0, 0.22);
+    radial-gradient(circle at 35% 30%, #fff7bd, transparent 45%),
+    #dff8ef;
   text-align: center;
 }
 
@@ -196,7 +196,7 @@ summary:focus-visible {
 .hero-seal::after {
   position: absolute;
   inset: 9px;
-  border: 1px dashed rgba(217, 184, 108, 0.35);
+  border: 1px dashed rgba(8, 143, 117, 0.35);
   border-radius: 50%;
   content: "";
 }
@@ -218,7 +218,7 @@ summary:focus-visible {
 
 .hero-seal strong {
   margin: 3px 0;
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-family: inherit;
   font-size: 1.55rem;
 }
 
@@ -252,21 +252,21 @@ summary:focus-visible {
 .list-top h2,
 .result-panel h2 {
   margin: 0;
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-family: inherit;
 }
 
 .review-count {
   flex: 0 0 auto;
-  border: 1px solid rgba(118, 84, 181, 0.65);
+  border: 1px solid rgba(114, 91, 212, 0.28);
   border-radius: 999px;
   padding: 6px 10px;
-  background: rgba(118, 84, 181, 0.15);
-  color: #d8c8ff;
+  background: #eee9ff;
+  color: #624dbd;
   font-size: 0.72rem;
 }
 
 .review-count strong {
-  color: #fff;
+  color: #4e3b9d;
   font-size: 1rem;
 }
 
@@ -283,8 +283,8 @@ summary:focus-visible {
   gap: 12px;
   width: 100%;
   min-height: 76px;
-  border: 1px solid rgba(217, 184, 108, 0.2);
-  border-radius: 17px;
+  border: 1px solid rgba(20, 86, 73, 0.12);
+  border-radius: 20px;
   padding: 12px 14px;
   background: var(--panel-2);
   cursor: pointer;
@@ -294,8 +294,8 @@ summary:focus-visible {
 
 .mode-card:not(:disabled):hover {
   transform: translateY(-2px);
-  border-color: rgba(240, 213, 139, 0.6);
-  background: #20251f;
+  border-color: rgba(8, 143, 117, 0.3);
+  filter: saturate(1.06) brightness(1.02);
 }
 
 .mode-card:active:not(:disabled) {
@@ -303,19 +303,21 @@ summary:focus-visible {
 }
 
 .mode-card--primary {
-  border-color: rgba(239, 123, 50, 0.6);
-  background: linear-gradient(135deg, #6f2f14, #2c1b13 60%);
+  border-color: rgba(232, 95, 69, 0.22);
+  background: linear-gradient(135deg, #ffd0a4, #ff8d70 72%);
+  color: #663225;
 }
 
 .mode-card--review {
-  border-color: rgba(118, 84, 181, 0.62);
-  background: linear-gradient(135deg, rgba(76, 54, 123, 0.78), #1c1727);
+  border-color: rgba(114, 91, 212, 0.22);
+  background: linear-gradient(135deg, #eee9ff, #b9a8fb 78%);
+  color: #44357f;
 }
 
 .mode-card:disabled {
   cursor: not-allowed;
-  filter: grayscale(0.4);
-  opacity: 0.48;
+  filter: grayscale(0.12);
+  opacity: 0.56;
 }
 
 .mode-card__number {
@@ -323,10 +325,10 @@ summary:focus-visible {
   width: 48px;
   height: 48px;
   place-items: center;
-  border: 1px solid rgba(217, 184, 108, 0.25);
-  border-radius: 13px;
-  background: rgba(0, 0, 0, 0.28);
-  color: var(--gold-bright);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.54);
+  color: currentColor;
   font-family: Georgia, serif;
   font-size: 1.2rem;
   font-weight: 800;
@@ -343,12 +345,13 @@ summary:focus-visible {
 
 .mode-card small {
   margin-top: 4px;
-  color: var(--muted);
+  color: currentColor;
+  opacity: 0.72;
   font-size: 0.72rem;
 }
 
 .mode-card__arrow {
-  color: var(--gold);
+  color: currentColor;
   font-size: 1.25rem;
 }
 
@@ -372,7 +375,7 @@ summary:focus-visible {
 
 .last-result {
   margin: 0;
-  color: rgba(244, 234, 209, 0.68);
+  color: rgba(17, 74, 63, 0.72);
   font-size: 0.7rem;
 }
 
@@ -403,9 +406,11 @@ summary:focus-visible {
   width: 46px;
   height: 46px;
   place-items: center;
-  border: 1px solid rgba(217, 184, 108, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.78);
   border-radius: 14px;
-  background: rgba(10, 20, 16, 0.55);
+  background: rgba(255, 255, 255, 0.8);
+  color: #075f50;
+  box-shadow: 0 6px 18px rgba(9, 91, 73, 0.12);
   cursor: pointer;
   font-size: 1.2rem;
 }
@@ -442,7 +447,7 @@ summary:focus-visible {
   overflow: hidden;
   border: 1px solid rgba(217, 184, 108, 0.18);
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(255, 255, 255, 0.62);
 }
 
 .progress-track span {
@@ -463,18 +468,16 @@ summary:focus-visible {
   display: grid;
   grid-template-rows: auto minmax(90px, 1fr) auto minmax(80px, auto);
   min-height: 0;
-  border: 1px solid rgba(217, 184, 108, 0.32);
+  border: 1px solid rgba(20, 86, 73, 0.14);
   border-radius: 26px;
   padding: clamp(20px, 5vw, 38px);
   overflow: hidden;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.03), transparent 34%),
-    var(--panel);
+  background: linear-gradient(145deg, #ffffff, #fffaf0);
   box-shadow: var(--shadow);
 }
 
 .flashcard--revealed {
-  border-color: rgba(95, 191, 136, 0.46);
+  border-color: rgba(10, 155, 118, 0.42);
 }
 
 .card-meta {
@@ -500,7 +503,7 @@ summary:focus-visible {
 .question-text {
   align-self: center;
   margin: 16px 0;
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-family: inherit;
   font-size: clamp(1.25rem, 5.5vw, 2.05rem);
   font-weight: 800;
   line-height: 1.55;
@@ -606,13 +609,13 @@ summary:focus-visible {
   border: 1px solid rgba(95, 191, 136, 0.34);
   border-radius: 16px;
   padding: 12px;
-  background: rgba(33, 92, 63, 0.23);
+  background: #e4f8ef;
   animation: answer-in 180ms ease-out;
 }
 
 .answer-block p {
   margin: 0;
-  color: #c8f2d7;
+  color: #17624f;
   font-size: clamp(1rem, 4.3vw, 1.42rem);
   font-weight: 900;
   line-height: 1.45;
@@ -631,7 +634,7 @@ summary:focus-visible {
 
 .rating-panel > p {
   margin: 0 0 8px;
-  color: rgba(244, 234, 209, 0.72);
+  color: rgba(17, 74, 63, 0.76);
   font-size: 0.72rem;
   text-align: center;
 }
@@ -669,14 +672,15 @@ summary:focus-visible {
 }
 
 .rating-button--again {
-  border-color: #9775d3;
-  background: linear-gradient(#8364bd, var(--purple));
+  border-color: #a28cf3;
+  background: linear-gradient(#d9d0ff, var(--purple));
+  color: #382c72;
 }
 
 .rating-button--known {
   border-color: #ffc08e;
-  background: linear-gradient(#ff9553, var(--orange));
-  color: #23150d;
+  background: linear-gradient(#ffc08d, var(--orange));
+  color: #5b2b20;
 }
 
 .rating-button:disabled {
@@ -751,11 +755,11 @@ summary:focus-visible {
   display: grid;
   aspect-ratio: 1;
   place-content: center;
-  border: 1px solid rgba(217, 184, 108, 0.32);
+  border: 1px solid rgba(20, 86, 73, 0.14);
   border-radius: 26px;
   background:
-    radial-gradient(circle, rgba(217, 184, 108, 0.16), transparent 58%),
-    #171b17;
+    radial-gradient(circle, rgba(255, 223, 127, 0.54), transparent 58%),
+    #f1fbf7;
 }
 
 .rank-badge span {
@@ -821,13 +825,13 @@ summary:focus-visible {
 }
 
 .primary-button {
-  background: linear-gradient(#ff934e, var(--orange));
-  color: #20140d;
+  background: linear-gradient(#ffc08d, var(--orange));
+  color: #5b2b20;
 }
 
 .review-button {
-  background: linear-gradient(#8b6ac7, var(--purple));
-  color: #fff;
+  background: linear-gradient(#d9d0ff, var(--purple));
+  color: #382c72;
 }
 
 /* List */
@@ -851,7 +855,7 @@ summary:focus-visible {
 
 .list-lead {
   margin: 12px 0 16px;
-  color: rgba(244, 234, 209, 0.72);
+  color: rgba(17, 74, 63, 0.78);
   font-size: 0.78rem;
   line-height: 1.6;
 }
@@ -871,10 +875,11 @@ summary:focus-visible {
 }
 
 .question-row {
-  border: 1px solid rgba(217, 184, 108, 0.2);
+  border: 1px solid rgba(20, 86, 73, 0.14);
   border-radius: 15px;
   overflow: hidden;
-  background: rgba(17, 20, 17, 0.94);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 8px 22px rgba(9, 91, 73, 0.08);
 }
 
 .question-row--review {
@@ -910,7 +915,7 @@ summary:focus-visible {
   border-radius: 999px;
   padding: 3px 7px;
   background: var(--purple-dark);
-  color: #e0d3ff;
+  color: #ffffff;
   font-size: 0.62rem;
   white-space: nowrap;
 }
@@ -928,7 +933,7 @@ summary:focus-visible {
 .list-answer {
   border-top: 1px solid var(--line);
   padding: 13px 16px 16px 48px;
-  background: rgba(33, 92, 63, 0.2);
+  background: #e4f8ef;
 }
 
 .list-answer > span {
@@ -940,7 +945,7 @@ summary:focus-visible {
 
 .list-answer p {
   margin: 5px 0 0;
-  color: #cef1da;
+  color: #17624f;
   font-size: 0.88rem;
   font-weight: 800;
   line-height: 1.55;
@@ -960,12 +965,12 @@ summary:focus-visible {
   width: min(calc(100% - 36px), 814px);
   min-height: 54px;
   margin: auto;
-  border: 1px solid rgba(217, 184, 108, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 16px;
-  background: rgba(14, 17, 14, 0.96);
-  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.4);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 35px rgba(9, 91, 73, 0.22);
   cursor: pointer;
-  color: var(--gold-bright);
+  color: #08715f;
   font-weight: 900;
   backdrop-filter: blur(10px);
 }
