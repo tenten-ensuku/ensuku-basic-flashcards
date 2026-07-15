@@ -31,9 +31,11 @@ test("renders the production flashcard home screen", async () => {
   assert.match(html, /<html lang="ja">/i);
   assert.match(html, /<title>一向聴 基礎講義フラッシュカード<\/title>/i);
   assert.match(html, /一向聴 基礎講義フラッシュカード/);
-  assert.match(html, /ver(?:<!-- -->)?4/);
+  assert.match(html, /ver(?:<!-- -->)?5/);
   assert.match(html, /授業の復習/);
   assert.match(html, /7\/14　てんてん授業/);
+  assert.match(html, /7\/2　ねじまき鳥先生/);
+  assert.match(html, /2 LESSONS \/ 100 CARDS/);
   assert.doesNotMatch(html, /ランダム10問/);
   assert.match(html, /全50問/);
   assert.match(html, /解き直しカード/);

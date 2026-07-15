@@ -232,6 +232,14 @@ summary:focus-visible {
   padding: 18px;
 }
 
+.mode-panel + .mode-panel {
+  margin-top: 14px;
+}
+
+.lesson-list-button {
+  margin-top: 8px;
+}
+
 .section-heading,
 .list-top {
   display: flex;

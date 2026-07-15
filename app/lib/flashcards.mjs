@@ -1,5 +1,6 @@
-export const APP_VERSION = 4;
-export const STORAGE_KEY = "ensuku-basic-flashcards-v3";
+export const APP_VERSION = 5;
+export const STORAGE_KEY = "ensuku-basic-flashcards-v4";
+export const LEGACY_STORAGE_KEY = "ensuku-basic-flashcards-v3";
 
 /** @typedef {{ id: number, question: string, answer: string }} Flashcard */
 /** @typedef {"all" | "review"} SessionMode */
@@ -58,15 +59,77 @@ export const FLASHCARDS = Object.freeze([
   { id: 50, question: "何を引けば聴牌する？\n1234ｍ245678ｐ發發發", answer: "牌姿\n1234ｍ245678ｐ發發發\n受け入れ\n14ｍ、258ｐ369ｐ" },
 ]);
 
+/** @type {ReadonlyArray<Flashcard>} */
+export const NEJIMAKI_FLASHCARDS = Object.freeze([
+  { id: 1, question: "余剰牌型一向聴とはどのような状態？", answer: "2面子1雀頭2ターツに受け入れを増やしていない孤立牌が存在する形。" },
+  { id: 2, question: "完全形一向聴とはどのような状態？", answer: "2面子1雀頭があり、2ターツのうち1つのターツをもう1枚の牌がフォローしている状態。" },
+  { id: 3, question: "ヘッドレス1型の定義は？", answer: "3面子（雀頭なし）があり、ターツが1つある状態。" },
+  { id: 4, question: "ヘッドレス1型のテンパイ条件は？", answer: "「ターツが面子（四角）になる」または「孤立牌が対子（丸）になる」こと。" },
+  { id: 5, question: "ヘッドレス2型の定義は？", answer: "3面子（雀頭なし）があり、ターツが2つある状態。" },
+  { id: 6, question: "ヘッドレス2型のテンパイ条件は？", answer: "どちらかのターツが面子（四角）か頭（丸）になること。" },
+  { id: 7, question: "ヘッドレス2型の大きな特徴は？", answer: "受け入れを「何から何まで」と範囲で言えることが多い点。" },
+  { id: 8, question: "くっつき一向聴の定義は？", answer: "3面子1雀頭があり、孤立牌が2枚ある状態。" },
+  { id: 9, question: "くっつき一向聴のテンパイ条件は？", answer: "「孤立牌に牌がくっついてターツができる」または「雀頭が暗刻になる」こと。" },
+  { id: 10, question: "「ヘッドレス」と「くっつき」の共通点は？", answer: "どちらも3面子完成している一向聴であること。" },
+  { id: 11, question: "「筋のびーるの法則」とは何に関する法則？", answer: "複雑な形で待ちが増える（多面張になる）仕組みを説明する法則。" },
+  { id: 12, question: "筋のびーるの法則1「待ちを端に含む順子がくっつく」とどうなる？", answer: "待ちがその牌の筋まで伸びる（例：1-4待ちに456がくっつくと1-4-7待ちになる）。" },
+  { id: 13, question: "筋のびーるの法則2「単騎待ちに隣接する順子がくっつく」とどうなる？", answer: "待ちが筋まで伸びて「のべタン」の形になる（例：5単騎に678がくっつくと5-8待ちになる）。" },
+  { id: 14, question: "待ちが増える法則3つ目はなんだろう？", answer: "「単騎待ちの近くに暗刻があるとアンチョビ形となって待ちが増える」\n（例　3335ｐ➡45ｐ待ち　1222ｍ➡13ｍ待ち　2223ｍ➡143ｍ）" },
+  { id: 15, question: "暗刻に少し離れて牌がくっついている形（333と5など）の通称は？", answer: "アンチョビ（暗刻にちょびっとくっついているから）。" },
+  { id: 16, question: "ヘッドレス1型で受け入れが増える「要注意形」を3つ挙げよ。", answer: "ターツスキップ、リャンカン、□×" },
+  { id: 17, question: "「ターツスキップ」とはどのような形？", answer: "ターツの1つ飛ばしの牌（スキップ牌）を持っている形（例：56と8）。" },
+  { id: 18, question: "ターツスキップ（例：245）がある時の受け入れをスマートに言うと？（ヘッドレス1型時）", answer: "両面2筋（サブロー・リャンウー）のように言う。" },
+  { id: 19, question: "スキップ牌という画期的なワードを生み出したのは何期生の誰？", answer: "5期生みょもるふぁさん" },
+  { id: 20, question: "「□×」とはどのような状態？", answer: "面子（四角）と孤立牌（バツ）がくっついている状態。" },
+  { id: 21, question: "四角バツの代表的な3つの形は？", answer: "のべタン、亜両面、アンチョビ。" },
+  { id: 22, question: "「亜両面」とはどのような形？", answer: "順子にその端の牌が重なっている形（例：4566）。\n亜＝準ずる、劣るの意味。　単純な両面よりも受け入れ2枚を使用している為、待ちとしては単純両面にやや劣ることから名付けられた。" },
+  { id: 23, question: "亜両面（4566ｍ）の受け入れが伸びる理由は？", answer: "6ｍ単騎受けだけでなく、筋のびーるの法則（1番）により3の受けも増えるため。" },
+  { id: 24, question: "ヘッドレス1型で「7枚形」と呼ばれる形はどのような形か説明し、エンスクドリルで何種類とされているか答えよ。", answer: "2面子（6枚）に孤立牌1枚がくっついた、合計7枚の形。□×に更に□がくっついたもの。19種類。" },
+  { id: 25, question: "アンチョビ形の名付け親は何期生のだれ？", answer: "6期生ずぴたーさん" },
+  { id: 26, question: "ヘッドレス2型において「連続形」とはどのような形？", answer: "順子（四角）とターツ（三角）がくっついた5枚の形。" },
+  { id: 27, question: "ヘッドレス2型に連続形があると講師（てんてんさん）はどう表現する？", answer: "「めっちゃいい形」としてハートマークを描く。" },
+  { id: 28, question: "「隙間のない連続形」の受け入れ範囲は？", answer: "左隣から右隣まで全部。" },
+  { id: 29, question: "23456（隙間のない連続形）の受け入れは？", answer: "1から7まで（イーピンからチーピンまで）。" },
+  { id: 30, question: "「隙間のある連続形」とはどのような形？", answer: "順子とターツがくっついているが、カンチャン部分など持っていない牌がある形。" },
+  { id: 31, question: "隙間のある連続形の受け入れはどう増える？", answer: "本来のターツの受け入れに加え、筋が1種類増える。" },
+  { id: 32, question: "24456ｍ（隙間のある連続形）の受け入れは？", answer: "本来の234ｍの受け入れに筋の7が増えて2347ｍとなる。" },
+  { id: 33, question: "ヘッドレス2型は、なぜ1型よりも簡単と言われる？", answer: "連続形があるかないかだけだから。受け入れも隙間のある連続形以外は全て何から何までと言える為。" },
+  { id: 34, question: "孤立牌に牌がくっついてターツ（三角）になるのは、何個隣まで？", answer: "2個隣まで。" },
+  { id: 35, question: "1や9の孤立牌にくっつく牌（対子含む）は何種類？", answer: "3種類（1なら1・2・3）。" },
+  { id: 36, question: "3〜7の孤立牌にくっつく牌は何種類？", answer: "5種類（例：4なら2・3・4・5・6）。" },
+  { id: 37, question: "3〜7の孤立牌の通称は？", answer: "強孤立牌（きょうこりつはい）。" },
+  { id: 38, question: "強孤立牌の中で、最も強いとされる牌とその理由は？", answer: "3と7。端っこに近い良形（両面や端のカンチャン）を作りやすいため。" },
+  { id: 39, question: "強孤立牌（3〜7）の中で、最も弱いとされる牌とその理由は？", answer: "5。ど真ん中なので、できる待ちも真ん中に寄りやすく上がりづらいため。" },
+  { id: 40, question: "タンヤオが確定しそうな場合、3よりも優先すべき孤立牌は？", answer: "4や5（1を引いて役が消えるリスクがないため）。" },
+  { id: 41, question: "くっつき業界のエース「中膨れ（なかぶくれ）」とはどんな形？", answer: "4556のように、真ん中が膨らんでいる4枚の形。" },
+  { id: 42, question: "中膨れがエースである理由を二つ言って。", answer: "両面待ちになる受け入れが圧倒的に多いため（4種類で両面になる）。一盃口チャンスもある。" },
+  { id: 43, question: "くっつきのもう一人のエース「4連形」の強みは？", answer: "非常に広い範囲（最大8種類）でくっつき、三面張待ちにもなり得る。" },
+  { id: 44, question: "重要知識1：雀頭（対子）のすぐ隣の孤立牌を残すと、受け入れは何枚ロス？", answer: "4枚ロス。" },
+  { id: 45, question: "雀頭（11ｍ）のそばの牌（2ｍや3ｍ）のくっつきが4枚ロスとなる理由は？", answer: "自分で雀頭として2枚使っている牌（1）が、くっつき牌（2）の受け入れと重複してしまうため。" },
+  { id: 46, question: "重要知識2：両面対子（例：344）と非常に相性が良い形は？", answer: "□×（4連形、亜両面、アンチョビ等）。" },
+  { id: 47, question: "4連形と両面対子をセットで残すべき理由は？", answer: "枚数は減るが、両面テンパイできる確率が大幅に上がるため。" },
+  { id: 48, question: "重要知識3：中膨れ（例：4556）と両面対子（例：344）の相性は？", answer: "相性が悪い。" },
+  { id: 49, question: "中膨れと両面対子の相性が悪い理由は？", answer: "両面対子が両面として機能する受け入れが極端に少なくせっかくの両面対子が活かせない為。" },
+  { id: 50, question: "端っこ（1234）の4連形は強い？", answer: "強くない。くっつきとしての強さは単独の強孤立牌程度。ただし、両面対子とは相性が良い。" },
+]);
+
+export const LESSONS = Object.freeze({
+  tenten: Object.freeze({ id: "tenten", label: "7/14　てんてん授業", cards: FLASHCARDS }),
+  nejimaki: Object.freeze({ id: "nejimaki", label: "7/2　ねじまき鳥先生", cards: NEJIMAKI_FLASHCARDS }),
+});
+
 /**
+ * @param {keyof typeof LESSONS} lessonId
  * @param {SessionMode} mode
  * @param {number[]} reviewCardIds
  */
-export function createSessionCards(mode, reviewCardIds = []) {
-  if (mode === "all") return [...FLASHCARDS];
+export function createSessionCards(lessonId, mode, reviewCardIds = []) {
+  const lesson = LESSONS[lessonId];
+  if (!lesson) throw new RangeError(`Unknown lesson: ${lessonId}`);
+  if (mode === "all") return [...lesson.cards];
   if (mode === "review") {
     const reviewSet = new Set(reviewCardIds);
-    return FLASHCARDS.filter((card) => reviewSet.has(card.id));
+    return lesson.cards.filter((card) => reviewSet.has(card.id));
   }
   throw new RangeError(`Unknown session mode: ${mode}`);
 }
@@ -93,17 +156,22 @@ export function formatDuration(seconds) {
 }
 
 export function readProgress(raw) {
-  if (!raw) return { reviewCardIds: [], lastSession: null };
+  const empty = { reviewCardIdsByLesson: { tenten: [], nejimaki: [] }, lastSession: null };
+  if (!raw) return empty;
   try {
     const parsed = JSON.parse(raw);
-    const validIds = Array.isArray(parsed.reviewCardIds)
-      ? parsed.reviewCardIds.filter((id) => Number.isInteger(id) && id >= 1 && id <= FLASHCARDS.length)
-      : [];
+    const sanitize = (ids, length) => [...new Set(
+      Array.isArray(ids) ? ids.filter((id) => Number.isInteger(id) && id >= 1 && id <= length) : [],
+    )].sort((a, b) => a - b);
+    const legacyTentenIds = parsed.reviewCardIds;
     return {
-      reviewCardIds: [...new Set(validIds)].sort((a, b) => a - b),
+      reviewCardIdsByLesson: {
+        tenten: sanitize(parsed.reviewCardIdsByLesson?.tenten ?? legacyTentenIds, FLASHCARDS.length),
+        nejimaki: sanitize(parsed.reviewCardIdsByLesson?.nejimaki, NEJIMAKI_FLASHCARDS.length),
+      },
       lastSession: parsed.lastSession && typeof parsed.lastSession === "object" ? parsed.lastSession : null,
     };
   } catch {
-    return { reviewCardIds: [], lastSession: null };
+    return empty;
   }
 }

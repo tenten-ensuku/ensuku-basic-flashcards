@@ -4,6 +4,9 @@ import test from "node:test";
 import {
   APP_VERSION,
   FLASHCARDS,
+  LEGACY_STORAGE_KEY,
+  LESSONS,
+  NEJIMAKI_FLASHCARDS,
   STORAGE_KEY,
   createSessionCards,
   formatDuration,
@@ -12,11 +15,16 @@ import {
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships the updated 50-card data set as ver4", () => {
-  assert.equal(APP_VERSION, 4);
-  assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v3");
+test("ships two 50-card lessons as ver5", () => {
+  assert.equal(APP_VERSION, 5);
+  assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v4");
+  assert.equal(LEGACY_STORAGE_KEY, "ensuku-basic-flashcards-v3");
   assert.equal(FLASHCARDS.length, 50);
+  assert.equal(NEJIMAKI_FLASHCARDS.length, 50);
   assert.deepEqual(FLASHCARDS.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));
+  assert.deepEqual(NEJIMAKI_FLASHCARDS.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));
+  assert.equal(LESSONS.tenten.label, "7/14　てんてん授業");
+  assert.equal(LESSONS.nejimaki.label, "7/2　ねじまき鳥先生");
 
   const allText = FLASHCARDS.flatMap(({ question, answer }) => [question, answer]).join("\n");
   for (const typo of [
@@ -52,16 +60,23 @@ test("ships the updated 50-card data set as ver4", () => {
   assert.equal(FLASHCARDS[29].answer, "147ｍ待ち");
   assert.equal(FLASHCARDS[30].answer, "孤立牌がターツをフォローしている2面子型一向聴。");
   assert.equal(FLASHCARDS[49].question.includes("1234ｍ245678ｐ"), true);
+
+  assert.equal(NEJIMAKI_FLASHCARDS[24].question, "アンチョビ形の名付け親は何期生のだれ？");
+  assert.equal(NEJIMAKI_FLASHCARDS[24].answer, "6期生ずぴたーさん");
+  assert.equal(NEJIMAKI_FLASHCARDS[31].question.includes("24456ｍ"), true);
+  assert.equal(NEJIMAKI_FLASHCARDS[44].question.includes("11ｍ"), true);
 });
 
-test("creates ordered sessions for all questions and redo cards", () => {
-  const all = createSessionCards("all");
+test("creates ordered and isolated sessions for both lessons", () => {
+  const all = createSessionCards("tenten", "all");
   assert.equal(all.length, 50);
   assert.deepEqual(all.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));
 
-  const review = createSessionCards("review", [30, 3, 9]);
+  const review = createSessionCards("nejimaki", "review", [30, 3, 9]);
   assert.deepEqual(review.map(({ id }) => id), [3, 9, 30]);
-  assert.throws(() => createSessionCards("quick"), /Unknown session mode/);
+  assert.equal(review[0].question, NEJIMAKI_FLASHCARDS[2].question);
+  assert.throws(() => createSessionCards("missing", "all"), /Unknown lesson/);
+  assert.throws(() => createSessionCards("tenten", "quick"), /Unknown session mode/);
 });
 
 test("includes the approved tile assets for every numbered suit", () => {
@@ -93,11 +108,25 @@ test("uses the exact rank boundaries", () => {
 });
 
 test("recovers safely from unavailable or malformed saved data", () => {
-  assert.deepEqual(readProgress(null), { reviewCardIds: [], lastSession: null });
-  assert.deepEqual(readProgress("{broken"), { reviewCardIds: [], lastSession: null });
+  const empty = { reviewCardIdsByLesson: { tenten: [], nejimaki: [] }, lastSession: null };
+  assert.deepEqual(readProgress(null), empty);
+  assert.deepEqual(readProgress("{broken"), empty);
   assert.deepEqual(
-    readProgress(JSON.stringify({ reviewCardIds: [3, 3, 50, 51, "9"], lastSession: { mode: "all" } })),
-    { reviewCardIds: [3, 50], lastSession: { mode: "all" } },
+    readProgress(JSON.stringify({
+      reviewCardIdsByLesson: { tenten: [3, 3, 50, 51, "9"], nejimaki: [25, 1, 60] },
+      lastSession: { lessonId: "nejimaki", mode: "all" },
+    })),
+    {
+      reviewCardIdsByLesson: { tenten: [3, 50], nejimaki: [1, 25] },
+      lastSession: { lessonId: "nejimaki", mode: "all" },
+    },
+  );
+  assert.deepEqual(
+    readProgress(JSON.stringify({ reviewCardIds: [3, 50], lastSession: { mode: "review" } })),
+    {
+      reviewCardIdsByLesson: { tenten: [3, 50], nejimaki: [] },
+      lastSession: { mode: "review" },
+    },
   );
   assert.equal(formatDuration(0), "0:00");
   assert.equal(formatDuration(125), "2:05");

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   APP_VERSION,
-  FLASHCARDS,
+  LEGACY_STORAGE_KEY,
+  LESSONS,
   STORAGE_KEY,
   createSessionCards,
   formatDuration,
@@ -15,8 +16,11 @@ import {
 type Screen = "home" | "session" | "result" | "list";
 type SessionMode = "all" | "review";
 type Rating = "known" | "again";
-type Flashcard = (typeof FLASHCARDS)[number];
+type LessonId = keyof typeof LESSONS;
+type Flashcard = { id: number; question: string; answer: string };
+type ReviewCardIdsByLesson = Record<LessonId, number[]>;
 type LastSession = {
+  lessonId: LessonId;
   mode: SessionMode;
   count: number;
   known: number;
@@ -94,11 +98,11 @@ function MahjongText({ text }: { text: string }) {
   return <>{parts}</>;
 }
 
-function safeSave(reviewCardIds: number[], lastSession: LastSession | null) {
+function safeSave(reviewCardIdsByLesson: ReviewCardIdsByLesson, lastSession: LastSession | null) {
   try {
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ reviewCardIds, lastSession }),
+      JSON.stringify({ reviewCardIdsByLesson, lastSession }),
     );
   } catch {
     // 保存不可でも、現在のセッションはそのまま続ける。
@@ -122,8 +126,12 @@ function HomeHeader({ compact = false }: { compact?: boolean }) {
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
-  const [reviewCardIds, setReviewCardIds] = useState<number[]>([]);
+  const [reviewCardIdsByLesson, setReviewCardIdsByLesson] = useState<ReviewCardIdsByLesson>({
+    tenten: [],
+    nejimaki: [],
+  });
   const [lastSession, setLastSession] = useState<LastSession | null>(null);
+  const [selectedLesson, setSelectedLesson] = useState<LessonId>("tenten");
   const [sessionMode, setSessionMode] = useState<SessionMode>("all");
   const [sessionCards, setSessionCards] = useState<Flashcard[]>([]);
   const [cardIndex, setCardIndex] = useState(0);
@@ -138,8 +146,10 @@ export default function Home() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        const stored = readProgress(window.localStorage.getItem(STORAGE_KEY));
-        setReviewCardIds(stored.reviewCardIds);
+        const raw = window.localStorage.getItem(STORAGE_KEY)
+          ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
+        const stored = readProgress(raw);
+        setReviewCardIdsByLesson(stored.reviewCardIdsByLesson);
         setLastSession(stored.lastSession as LastSession | null);
       } catch {
         // localStorageが使えない環境では初期値のまま動作する。
@@ -169,6 +179,7 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [screen]);
 
+  const reviewCardIds = reviewCardIdsByLesson[selectedLesson];
   const reviewSet = useMemo(() => new Set(reviewCardIds), [reviewCardIds]);
   const currentCard = sessionCards[cardIndex];
   const progress = sessionCards.length
@@ -176,9 +187,10 @@ export default function Home() {
     : 0;
 
   const startSession = useCallback(
-    (mode: SessionMode) => {
-      const cards = createSessionCards(mode, reviewCardIds) as Flashcard[];
+    (lessonId: LessonId, mode: SessionMode) => {
+      const cards = createSessionCards(lessonId, mode, reviewCardIdsByLesson[lessonId]) as Flashcard[];
       if (cards.length === 0) return;
+      setSelectedLesson(lessonId);
       setSessionMode(mode);
       setSessionCards(cards);
       setCardIndex(0);
@@ -191,7 +203,7 @@ export default function Home() {
       startedAtRef.current = Date.now();
       setScreen("session");
     },
-    [reviewCardIds],
+    [reviewCardIdsByLesson],
   );
 
   const rateCard = useCallback(
@@ -200,15 +212,19 @@ export default function Home() {
       setIsAdvancing(true);
 
       const nextReviewIds = updateReviewIds(
-        reviewCardIds,
+        reviewCardIdsByLesson[selectedLesson],
         currentCard.id,
         rating,
       );
+      const nextReviewCardIdsByLesson = {
+        ...reviewCardIdsByLesson,
+        [selectedLesson]: nextReviewIds,
+      };
       const nextKnown = knownCount + (rating === "known" ? 1 : 0);
       const nextAgain = againCount + (rating === "again" ? 1 : 0);
       const isLast = cardIndex >= sessionCards.length - 1;
 
-      setReviewCardIds(nextReviewIds);
+      setReviewCardIdsByLesson(nextReviewCardIdsByLesson);
       setKnownCount(nextKnown);
       setAgainCount(nextAgain);
 
@@ -218,6 +234,7 @@ export default function Home() {
         );
         const rate = Math.round((nextKnown / sessionCards.length) * 100);
         const result: LastSession = {
+          lessonId: selectedLesson,
           mode: sessionMode,
           count: sessionCards.length,
           known: nextKnown,
@@ -229,9 +246,9 @@ export default function Home() {
         };
         resultRef.current = result;
         setLastSession(result);
-        safeSave(nextReviewIds, result);
+        safeSave(nextReviewCardIdsByLesson, result);
       } else {
-        safeSave(nextReviewIds, lastSession);
+        safeSave(nextReviewCardIdsByLesson, lastSession);
       }
 
       window.setTimeout(() => {
@@ -254,7 +271,8 @@ export default function Home() {
       knownCount,
       lastSession,
       revealed,
-      reviewCardIds,
+      reviewCardIdsByLesson,
+      selectedLesson,
       sessionCards.length,
       sessionMode,
     ],
@@ -294,7 +312,7 @@ export default function Home() {
 
           <div className="hero-panel">
             <div className="hero-copy">
-              <p className="hero-kicker">50 CARDS / SELF CHECK</p>
+              <p className="hero-kicker">2 LESSONS / 100 CARDS</p>
               <h2 id="app-title">授業の復習</h2>
               <p>
                 問題を読んで答えを思い浮かべたら、カードをめくって自己判定。
@@ -308,57 +326,69 @@ export default function Home() {
             </div>
           </div>
 
-          <section className="mode-panel" aria-label="7/14　てんてん授業">
-            <div className="section-heading">
-              <div>
-                <p className="section-kicker">SELECT MODE</p>
-                <h2>7/14　てんてん授業</h2>
-              </div>
-              <span className="review-count">
-                解き直し <strong>{reviewCardIds.length}</strong>枚
-              </span>
-            </div>
+          {(Object.keys(LESSONS) as LessonId[]).map((lessonId) => {
+            const lesson = LESSONS[lessonId];
+            const lessonReviewIds = reviewCardIdsByLesson[lessonId];
+            return (
+              <section className="mode-panel" aria-label={lesson.label} key={lessonId}>
+                <div className="section-heading">
+                  <div>
+                    <p className="section-kicker">SELECT MODE</p>
+                    <h2>{lesson.label}</h2>
+                  </div>
+                  <span className="review-count">
+                    解き直し <strong>{lessonReviewIds.length}</strong>枚
+                  </span>
+                </div>
 
-            <div className="mode-grid">
-              <button
-                className="mode-card mode-card--primary"
-                onClick={() => startSession("all")}
-                data-testid="start-all"
-              >
-                <span className="mode-card__number">50</span>
-                <span>
-                  <strong>全50問</strong>
-                  <small>講義内容を一周する</small>
-                </span>
-                <span className="mode-card__arrow" aria-hidden="true">→</span>
-              </button>
-              <button
-                className="mode-card mode-card--review"
-                onClick={() => startSession("review")}
-                disabled={reviewCardIds.length === 0}
-                data-testid="start-review"
-              >
-                <span className="mode-card__number">↺</span>
-                <span>
-                  <strong>解き直しカード</strong>
-                  <small>
-                    {reviewCardIds.length
-                      ? `${reviewCardIds.length}枚を解き直す`
-                      : "回答後に追加できます"}
-                  </small>
-                </span>
-                <span className="mode-card__arrow" aria-hidden="true">→</span>
-              </button>
-            </div>
-          </section>
+                <div className="mode-grid">
+                  <button
+                    className="mode-card mode-card--primary"
+                    onClick={() => startSession(lessonId, "all")}
+                    data-testid={`start-all-${lessonId}`}
+                  >
+                    <span className="mode-card__number">50</span>
+                    <span>
+                      <strong>全50問</strong>
+                      <small>講義内容を一周する</small>
+                    </span>
+                    <span className="mode-card__arrow" aria-hidden="true">→</span>
+                  </button>
+                  <button
+                    className="mode-card mode-card--review"
+                    onClick={() => startSession(lessonId, "review")}
+                    disabled={lessonReviewIds.length === 0}
+                    data-testid={`start-review-${lessonId}`}
+                  >
+                    <span className="mode-card__number">↺</span>
+                    <span>
+                      <strong>解き直しカード</strong>
+                      <small>
+                        {lessonReviewIds.length
+                          ? `${lessonReviewIds.length}枚を解き直す`
+                          : "回答後に追加できます"}
+                      </small>
+                    </span>
+                    <span className="mode-card__arrow" aria-hidden="true">→</span>
+                  </button>
+                </div>
+                <button
+                  className="text-button lesson-list-button"
+                  onClick={() => {
+                    setSelectedLesson(lessonId);
+                    setScreen("list");
+                  }}
+                >
+                  <span aria-hidden="true">☰</span> この授業の問題一覧を見る
+                </button>
+              </section>
+            );
+          })}
 
           <div className="home-footer">
-            <button className="text-button" onClick={() => setScreen("list")}>
-              <span aria-hidden="true">☰</span> 問題一覧を見る
-            </button>
             {lastSession && (
               <p className="last-result">
-                前回：{MODE_LABELS[lastSession.mode]}・
+                前回：{LESSONS[lastSession.lessonId ?? "tenten"].label}・{MODE_LABELS[lastSession.mode]}・
                 <strong>{lastSession.rate}%</strong>・ランク
                 <strong>{lastSession.rank}</strong>
               </p>
@@ -374,7 +404,7 @@ export default function Home() {
               ×
             </button>
             <div className="session-title">
-              <span>{MODE_LABELS[sessionMode]}</span>
+              <span>{LESSONS[selectedLesson].label} · {MODE_LABELS[sessionMode]}</span>
               <strong>
                 {cardIndex + 1}<small> / {sessionCards.length}</small>
               </strong>
@@ -451,7 +481,9 @@ export default function Home() {
           <div className="result-panel">
             <p className="section-kicker">SESSION COMPLETE</p>
             <h2 id="result-title">おつかれさまでした</h2>
-            <p className="result-subtitle">{MODE_LABELS[lastSession.mode]} 完了</p>
+            <p className="result-subtitle">
+              {LESSONS[lastSession.lessonId ?? "tenten"].label} · {MODE_LABELS[lastSession.mode]} 完了
+            </p>
 
             <div className="result-score">
               <div
@@ -494,12 +526,18 @@ export default function Home() {
             </dl>
 
             <div className="result-actions">
-              <button className="primary-button" onClick={() => startSession(lastSession.mode)}>
+              <button
+                className="primary-button"
+                onClick={() => startSession(lastSession.lessonId ?? "tenten", lastSession.mode)}
+              >
                 同じモードをもう一周
               </button>
-              {reviewCardIds.length > 0 && (
-                <button className="review-button" onClick={() => startSession("review")}>
-                  解き直しカードを復習（{reviewCardIds.length}枚）
+              {reviewCardIdsByLesson[lastSession.lessonId ?? "tenten"].length > 0 && (
+                <button
+                  className="review-button"
+                  onClick={() => startSession(lastSession.lessonId ?? "tenten", "review")}
+                >
+                  解き直しカードを復習（{reviewCardIdsByLesson[lastSession.lessonId ?? "tenten"].length}枚）
                 </button>
               )}
               <button className="text-button" onClick={() => setScreen("home")}>
@@ -518,7 +556,7 @@ export default function Home() {
             </button>
             <div>
               <p className="section-kicker">ALL FLASHCARDS</p>
-              <h2 id="list-title">問題一覧</h2>
+              <h2 id="list-title">{LESSONS[selectedLesson].label}</h2>
             </div>
             <span className="review-count">
               解き直し <strong>{reviewCardIds.length}</strong>枚
@@ -526,12 +564,12 @@ export default function Home() {
           </div>
 
           <p className="list-lead">
-            全50問。タップすると答えが開きます。
+            全50問の問題一覧。タップすると答えが開きます。
             <span className="review-dot" /> は「解き直しに追加」したカードです。
           </p>
 
           <div className="question-list">
-            {FLASHCARDS.map((card) => (
+            {LESSONS[selectedLesson].cards.map((card) => (
               <details
                 key={card.id}
                 className={reviewSet.has(card.id) ? "question-row question-row--review" : "question-row"}
