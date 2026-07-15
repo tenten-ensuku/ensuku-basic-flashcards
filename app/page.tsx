@@ -225,11 +225,7 @@ export default function Home() {
           <div className="hero-panel">
             <div className="hero-copy">
               <p className="hero-kicker">50 CARDS / SELF CHECK</p>
-              <h2 id="app-title">
-                形の名前を、
-                <br />
-                迷わず言えるまで。
-              </h2>
+              <h2 id="app-title">授業の復習</h2>
               <p>
                 問題を読んで答えを思い浮かべたら、カードをめくって自己判定。
                 苦手だけを何度でも復習できます。
@@ -242,11 +238,11 @@ export default function Home() {
             </div>
           </div>
 
-          <section className="mode-panel" aria-label="出題モード">
+          <section className="mode-panel" aria-label="7/14　てんてん授業">
             <div className="section-heading">
               <div>
                 <p className="section-kicker">SELECT MODE</p>
-                <h2>出題モード</h2>
+                <h2>7/14　てんてん授業</h2>
               </div>
               <span className="review-count">
                 苦手 <strong>{reviewCardIds.length}</strong>枚

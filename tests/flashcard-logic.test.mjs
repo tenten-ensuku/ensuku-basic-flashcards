@@ -11,8 +11,8 @@ import {
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships the corrected 50-card data set as ver1", () => {
-  assert.equal(APP_VERSION, 1);
+test("ships the corrected 50-card data set as ver2", () => {
+  assert.equal(APP_VERSION, 2);
   assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v1");
   assert.equal(FLASHCARDS.length, 50);
   assert.deepEqual(FLASHCARDS.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));

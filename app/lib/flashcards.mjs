@@ -1,4 +1,4 @@
-export const APP_VERSION = 1;
+export const APP_VERSION = 2;
 export const STORAGE_KEY = "ensuku-basic-flashcards-v1";
 
 /** @typedef {{ id: number, question: string, answer: string }} Flashcard */
