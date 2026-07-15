@@ -2,14 +2,14 @@
   "name": "一向聴 基礎講義フラッシュカード",
   "short_name": "一向聴カード",
   "description": "一向聴の基礎講義2授業・全100問を復習できるフラッシュカード",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#48d6b0",
   "theme_color": "#48d6b0",
   "lang": "ja",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

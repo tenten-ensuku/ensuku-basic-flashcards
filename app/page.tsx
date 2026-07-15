@@ -44,6 +44,8 @@ const SUITS: Record<Suit, { prefix: string; label: string }> = {
   s: { prefix: "sou", label: "索" },
 };
 
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+
 function normalizeDigits(value: string) {
   return value.replace(/[１-９]/g, (digit) =>
     String("１２３４５６７８９".indexOf(digit) + 1),
@@ -51,11 +53,11 @@ function normalizeDigits(value: string) {
 }
 
 function tilePath(suit: Suit, digit: string) {
-  return `/tiles/${SUITS[suit].prefix}${digit}-66-90-l.png`;
+  return `${BASE_PATH}/tiles/${SUITS[suit].prefix}${digit}-66-90-l.png`;
 }
 
 function honorTilePath() {
-  return "/tiles/ji5-66-90-l.png";
+  return `${BASE_PATH}/tiles/ji5-66-90-l.png`;
 }
 
 function MahjongText({ text }: { text: string }) {

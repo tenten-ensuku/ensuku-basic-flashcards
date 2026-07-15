@@ -31,7 +31,7 @@ test("renders the production flashcard home screen", async () => {
   assert.match(html, /<html lang="ja">/i);
   assert.match(html, /<title>一向聴 基礎講義フラッシュカード<\/title>/i);
   assert.match(html, /一向聴 基礎講義フラッシュカード/);
-  assert.match(html, /ver(?:<!-- -->)?7/);
+  assert.match(html, /ver(?:<!-- -->)?8/);
   assert.match(html, /授業の復習/);
   assert.match(html, /7\/14　てんてん授業/);
   assert.match(html, /7\/2　ねじまき鳥先生/);
@@ -46,7 +46,10 @@ test("publishes the expected social metadata", async () => {
   const response = await render();
   const html = await response.text();
   assert.match(html, /property="og:title" content="一向聴 基礎講義フラッシュカード"/);
-  assert.match(html, /property="og:image" content="\/og-card\.png"/);
+  assert.match(
+    html,
+    /property="og:image" content="https:\/\/ensuku-basic-flashcards\.kobotenmitsu\.chatgpt\.site\/og-card\.png"/,
+  );
   assert.match(html, /name="twitter:card" content="summary_large_image"/);
   assert.match(html, /name="theme-color" content="#48d6b0"/);
 });
