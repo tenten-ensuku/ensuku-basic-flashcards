@@ -13,7 +13,7 @@ import {
 } from "./lib/flashcards.mjs";
 
 type Screen = "home" | "session" | "result" | "list";
-type SessionMode = "quick" | "all" | "review";
+type SessionMode = "all" | "review";
 type Rating = "known" | "again";
 type Flashcard = (typeof FLASHCARDS)[number];
 type LastSession = {
@@ -28,10 +28,71 @@ type LastSession = {
 };
 
 const MODE_LABELS: Record<SessionMode, string> = {
-  quick: "ランダム10問",
-  all: "全50問",
-  review: "苦手カード",
+  all: "全51問",
+  review: "解き直しカード",
 };
+
+type Suit = "m" | "p" | "s";
+
+const SUITS: Record<Suit, { prefix: string; label: string }> = {
+  m: { prefix: "man", label: "萬" },
+  p: { prefix: "pin", label: "筒" },
+  s: { prefix: "sou", label: "索" },
+};
+
+function normalizeDigits(value: string) {
+  return value.replace(/[１-９]/g, (digit) =>
+    String("１２３４５６７８９".indexOf(digit) + 1),
+  );
+}
+
+function tilePath(suit: Suit, digit: string) {
+  return `/tiles/${SUITS[suit].prefix}${digit}-66-90-l.png`;
+}
+
+function MahjongText({ text }: { text: string }) {
+  const pattern = /([1-9１-９]+)[ \u3000]*([mpsｍｐｓ])/giu;
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > cursor) parts.push(text.slice(cursor, match.index));
+
+    const digits = normalizeDigits(match[1]);
+    const suit = match[2].normalize("NFKC").toLowerCase() as Suit;
+    parts.push(
+      <span className="tile-run" key={`${match.index}-${match[0]}`} aria-label={`${digits}${suit}`}>
+        {digits.split("").map((digit, index) => (
+          <span className="tile-slot" key={`${digit}-${index}`}>
+            {/* Approved tile PNGs keep their original 66×90 dimensions. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="tile-image"
+              src={tilePath(suit, digit)}
+              width="66"
+              height="90"
+              alt={`${digit}${SUITS[suit].label}`}
+              loading="eager"
+              onError={(event) => {
+                event.currentTarget.hidden = true;
+                const fallback = event.currentTarget.nextElementSibling as HTMLElement | null;
+                if (fallback) fallback.hidden = false;
+              }}
+            />
+            <span className="tile-fallback" hidden aria-hidden="true">
+              {digit}{suit}
+            </span>
+          </span>
+        ))}
+      </span>,
+    );
+    cursor = pattern.lastIndex;
+  }
+
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return <>{parts}</>;
+}
 
 function safeSave(reviewCardIds: number[], lastSession: LastSession | null) {
   try {
@@ -63,7 +124,7 @@ export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
   const [reviewCardIds, setReviewCardIds] = useState<number[]>([]);
   const [lastSession, setLastSession] = useState<LastSession | null>(null);
-  const [sessionMode, setSessionMode] = useState<SessionMode>("quick");
+  const [sessionMode, setSessionMode] = useState<SessionMode>("all");
   const [sessionCards, setSessionCards] = useState<Flashcard[]>([]);
   const [cardIndex, setCardIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -87,6 +148,15 @@ export default function Home() {
     return () => {
       window.clearTimeout(timer);
     };
+  }, []);
+
+  useEffect(() => {
+    for (const suit of Object.keys(SUITS) as Suit[]) {
+      for (let digit = 1; digit <= 9; digit += 1) {
+        const image = new window.Image();
+        image.src = tilePath(suit, String(digit));
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -224,11 +294,11 @@ export default function Home() {
 
           <div className="hero-panel">
             <div className="hero-copy">
-              <p className="hero-kicker">50 CARDS / SELF CHECK</p>
+              <p className="hero-kicker">51 CARDS / SELF CHECK</p>
               <h2 id="app-title">授業の復習</h2>
               <p>
                 問題を読んで答えを思い浮かべたら、カードをめくって自己判定。
-                苦手だけを何度でも復習できます。
+                解き直しカードだけを何度でも復習できます。
               </p>
             </div>
             <div className="hero-seal" aria-hidden="true">
@@ -245,31 +315,19 @@ export default function Home() {
                 <h2>7/14　てんてん授業</h2>
               </div>
               <span className="review-count">
-                苦手 <strong>{reviewCardIds.length}</strong>枚
+                解き直し <strong>{reviewCardIds.length}</strong>枚
               </span>
             </div>
 
             <div className="mode-grid">
               <button
                 className="mode-card mode-card--primary"
-                onClick={() => startSession("quick")}
-                data-testid="start-quick"
-              >
-                <span className="mode-card__number">10</span>
-                <span>
-                  <strong>ランダム10問</strong>
-                  <small>短時間でテンポよく確認</small>
-                </span>
-                <span className="mode-card__arrow" aria-hidden="true">→</span>
-              </button>
-              <button
-                className="mode-card"
                 onClick={() => startSession("all")}
                 data-testid="start-all"
               >
-                <span className="mode-card__number">50</span>
+                <span className="mode-card__number">51</span>
                 <span>
-                  <strong>全50問</strong>
+                  <strong>全51問</strong>
                   <small>講義内容を一周する</small>
                 </span>
                 <span className="mode-card__arrow" aria-hidden="true">→</span>
@@ -282,11 +340,11 @@ export default function Home() {
               >
                 <span className="mode-card__number">↺</span>
                 <span>
-                  <strong>苦手カードのみ</strong>
+                  <strong>解き直しカード</strong>
                   <small>
                     {reviewCardIds.length
-                      ? `${reviewCardIds.length}枚をもう一度`
-                      : "「もう一度」で追加されます"}
+                      ? `${reviewCardIds.length}枚を解き直す`
+                      : "回答後に追加できます"}
                   </small>
                 </span>
                 <span className="mode-card__arrow" aria-hidden="true">→</span>
@@ -336,7 +394,7 @@ export default function Home() {
                 <span>QUESTION</span>
                 <strong>Q{String(currentCard.id).padStart(2, "0")}</strong>
               </div>
-              <p className="question-text">{currentCard.question}</p>
+              <p className="question-text"><MahjongText text={currentCard.question} /></p>
 
               <div className="answer-divider">
                 <span>{revealed ? "ANSWER" : "THINK & REVEAL"}</span>
@@ -344,7 +402,7 @@ export default function Home() {
 
               {revealed ? (
                 <div className="answer-block" data-testid="answer">
-                  <p>{currentCard.answer}</p>
+                  <p><MahjongText text={currentCard.answer} /></p>
                 </div>
               ) : (
                 <button
@@ -369,7 +427,7 @@ export default function Home() {
                 data-testid="rate-again"
               >
                 <span aria-hidden="true">↺</span>
-                <strong>もう一度</strong>
+                <strong>解き直しに追加</strong>
                 <small>←</small>
               </button>
               <button
@@ -426,7 +484,7 @@ export default function Home() {
                 <dd>{lastSession.known}<small>問</small></dd>
               </div>
               <div>
-                <dt>もう一度</dt>
+                <dt>解き直しに追加</dt>
                 <dd>{lastSession.again}<small>問</small></dd>
               </div>
               <div>
@@ -437,11 +495,11 @@ export default function Home() {
 
             <div className="result-actions">
               <button className="primary-button" onClick={() => startSession(lastSession.mode)}>
-                同じモードでもう一度
+                同じモードをもう一周
               </button>
               {reviewCardIds.length > 0 && (
                 <button className="review-button" onClick={() => startSession("review")}>
-                  苦手カードを復習（{reviewCardIds.length}）
+                  解き直しカードを復習（{reviewCardIds.length}枚）
                 </button>
               )}
               <button className="text-button" onClick={() => setScreen("home")}>
@@ -463,13 +521,13 @@ export default function Home() {
               <h2 id="list-title">問題一覧</h2>
             </div>
             <span className="review-count">
-              苦手 <strong>{reviewCardIds.length}</strong>枚
+              解き直し <strong>{reviewCardIds.length}</strong>枚
             </span>
           </div>
 
           <p className="list-lead">
-            全50問。タップすると答えが開きます。
-            <span className="review-dot" /> は「もう一度」にしたカードです。
+            全51問。タップすると答えが開きます。
+            <span className="review-dot" /> は「解き直しに追加」したカードです。
           </p>
 
           <div className="question-list">
@@ -480,13 +538,13 @@ export default function Home() {
               >
                 <summary>
                   <span className="question-number">Q{String(card.id).padStart(2, "0")}</span>
-                  <span>{card.question}</span>
-                  {reviewSet.has(card.id) && <span className="review-tag">苦手</span>}
+                  <span><MahjongText text={card.question} /></span>
+                  {reviewSet.has(card.id) && <span className="review-tag">解き直し</span>}
                   <span className="chevron" aria-hidden="true">＋</span>
                 </summary>
                 <div className="list-answer">
                   <span>ANSWER</span>
-                  <p>{card.answer}</p>
+                  <p><MahjongText text={card.answer} /></p>
                 </div>
               </details>
             ))}

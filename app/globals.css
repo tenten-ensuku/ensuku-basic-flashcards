@@ -498,6 +498,40 @@ summary:focus-visible {
   line-height: 1.55;
   text-align: center;
   text-wrap: balance;
+  white-space: pre-wrap;
+}
+
+.tile-run {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  margin: 3px 2px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.tile-slot {
+  display: inline-grid;
+  place-items: center;
+}
+
+.tile-image {
+  display: block;
+  width: auto;
+  height: clamp(42px, 10vw, 64px);
+  border-radius: 3px;
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.28));
+}
+
+.tile-fallback {
+  min-width: 30px;
+  border: 1px solid rgba(217, 184, 108, 0.4);
+  border-radius: 4px;
+  padding: 6px 4px;
+  background: #f3ead2;
+  color: #24170f;
+  font: 800 0.82rem/1 Georgia, serif;
+  text-align: center;
 }
 
 .answer-divider {
@@ -575,6 +609,11 @@ summary:focus-visible {
   font-weight: 900;
   line-height: 1.45;
   text-align: center;
+  white-space: pre-wrap;
+}
+
+.answer-block .tile-image {
+  height: clamp(38px, 9vw, 56px);
 }
 
 @keyframes answer-in {
@@ -884,7 +923,7 @@ summary:focus-visible {
   background: rgba(33, 92, 63, 0.2);
 }
 
-.list-answer span {
+.list-answer > span {
   color: var(--green-light);
   font-size: 0.58rem;
   font-weight: 900;
@@ -897,6 +936,11 @@ summary:focus-visible {
   font-size: 0.88rem;
   font-weight: 800;
   line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.question-row .tile-image {
+  height: 38px;
 }
 
 .sticky-home-button {
@@ -928,7 +972,7 @@ summary:focus-visible {
   }
 
   .mode-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .mode-card {
