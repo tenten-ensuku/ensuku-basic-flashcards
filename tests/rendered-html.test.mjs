@@ -31,11 +31,11 @@ test("renders the production flashcard home screen", async () => {
   assert.match(html, /<html lang="ja">/i);
   assert.match(html, /<title>一向聴 基礎講義フラッシュカード<\/title>/i);
   assert.match(html, /一向聴 基礎講義フラッシュカード/);
-  assert.match(html, /ver(?:<!-- -->)?3/);
+  assert.match(html, /ver(?:<!-- -->)?4/);
   assert.match(html, /授業の復習/);
   assert.match(html, /7\/14　てんてん授業/);
   assert.doesNotMatch(html, /ランダム10問/);
-  assert.match(html, /全51問/);
+  assert.match(html, /全50問/);
   assert.match(html, /解き直しカード/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });

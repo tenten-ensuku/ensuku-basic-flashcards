@@ -12,11 +12,11 @@ import {
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships the updated 51-card data set as ver3", () => {
-  assert.equal(APP_VERSION, 3);
-  assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v2");
-  assert.equal(FLASHCARDS.length, 51);
-  assert.deepEqual(FLASHCARDS.map(({ id }) => id), Array.from({ length: 51 }, (_, index) => index + 1));
+test("ships the updated 50-card data set as ver4", () => {
+  assert.equal(APP_VERSION, 4);
+  assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v3");
+  assert.equal(FLASHCARDS.length, 50);
+  assert.deepEqual(FLASHCARDS.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));
 
   const allText = FLASHCARDS.flatMap(({ question, answer }) => [question, answer]).join("\n");
   for (const typo of [
@@ -43,16 +43,21 @@ test("ships the updated 51-card data set as ver3", () => {
     assert.equal(allText.includes(typo), false, `残存表記: ${typo}`);
   }
 
-  assert.equal(FLASHCARDS[22].question, "単騎待ちとは？");
-  assert.equal(FLASHCARDS[30].question, "23456ｍは何待ち？");
-  assert.equal(FLASHCARDS[30].answer, "147ｍ待ち");
-  assert.equal(FLASHCARDS[50].question.includes("1234ｍ245678ｐ"), true);
+  assert.equal(allText.includes("面子を正しく抜くことで、何の一向聴か判断できるようになる目的は？"), false);
+  assert.equal(FLASHCARDS[7].question, "ヘッドレス2型と相性が良いのは？");
+  assert.equal(FLASHCARDS[8].answer, "順子とターツがくっついた5枚形。");
+  assert.equal(FLASHCARDS[20].answer, "のべタン、亜両面、アンチョビ");
+  assert.equal(FLASHCARDS[23].question, "2234ｍのような□×はなんと");
+  assert.equal(FLASHCARDS[29].question, "23456ｍは何待ち？");
+  assert.equal(FLASHCARDS[29].answer, "147ｍ待ち");
+  assert.equal(FLASHCARDS[30].answer, "孤立牌がターツをフォローしている2面子型一向聴。");
+  assert.equal(FLASHCARDS[49].question.includes("1234ｍ245678ｐ"), true);
 });
 
 test("creates ordered sessions for all questions and redo cards", () => {
   const all = createSessionCards("all");
-  assert.equal(all.length, 51);
-  assert.deepEqual(all.map(({ id }) => id), Array.from({ length: 51 }, (_, index) => index + 1));
+  assert.equal(all.length, 50);
+  assert.deepEqual(all.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));
 
   const review = createSessionCards("review", [30, 3, 9]);
   assert.deepEqual(review.map(({ id }) => id), [3, 9, 30]);
@@ -91,8 +96,8 @@ test("recovers safely from unavailable or malformed saved data", () => {
   assert.deepEqual(readProgress(null), { reviewCardIds: [], lastSession: null });
   assert.deepEqual(readProgress("{broken"), { reviewCardIds: [], lastSession: null });
   assert.deepEqual(
-    readProgress(JSON.stringify({ reviewCardIds: [3, 3, 51, 52, "9"], lastSession: { mode: "all" } })),
-    { reviewCardIds: [3, 51], lastSession: { mode: "all" } },
+    readProgress(JSON.stringify({ reviewCardIds: [3, 3, 50, 51, "9"], lastSession: { mode: "all" } })),
+    { reviewCardIds: [3, 50], lastSession: { mode: "all" } },
   );
   assert.equal(formatDuration(0), "0:00");
   assert.equal(formatDuration(125), "2:05");

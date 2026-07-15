@@ -28,7 +28,7 @@ type LastSession = {
 };
 
 const MODE_LABELS: Record<SessionMode, string> = {
-  all: "全51問",
+  all: "全50問",
   review: "解き直しカード",
 };
 
@@ -294,7 +294,7 @@ export default function Home() {
 
           <div className="hero-panel">
             <div className="hero-copy">
-              <p className="hero-kicker">51 CARDS / SELF CHECK</p>
+              <p className="hero-kicker">50 CARDS / SELF CHECK</p>
               <h2 id="app-title">授業の復習</h2>
               <p>
                 問題を読んで答えを思い浮かべたら、カードをめくって自己判定。
@@ -325,9 +325,9 @@ export default function Home() {
                 onClick={() => startSession("all")}
                 data-testid="start-all"
               >
-                <span className="mode-card__number">51</span>
+                <span className="mode-card__number">50</span>
                 <span>
-                  <strong>全51問</strong>
+                  <strong>全50問</strong>
                   <small>講義内容を一周する</small>
                 </span>
                 <span className="mode-card__arrow" aria-hidden="true">→</span>
@@ -526,7 +526,7 @@ export default function Home() {
           </div>
 
           <p className="list-lead">
-            全51問。タップすると答えが開きます。
+            全50問。タップすると答えが開きます。
             <span className="review-dot" /> は「解き直しに追加」したカードです。
           </p>
 

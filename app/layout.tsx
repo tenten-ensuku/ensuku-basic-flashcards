@@ -3,7 +3,7 @@ import "./globals.css";
 
 const title = "一向聴 基礎講義フラッシュカード";
 const description =
-  "一向聴の基礎講義51問を、全問・解き直しカードの2モードで復習できる無料フラッシュカード。";
+  "一向聴の基礎講義50問を、全問・解き直しカードの2モードで復習できる無料フラッシュカード。";
 
 export const metadata: Metadata = {
   title,
