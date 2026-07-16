@@ -1,4 +1,4 @@
-export const APP_VERSION = 13;
+export const APP_VERSION = 14;
 export const STORAGE_KEY = "ensuku-basic-flashcards-v4";
 export const LEGACY_STORAGE_KEY = "ensuku-basic-flashcards-v3";
 
@@ -114,8 +114,18 @@ export const NEJIMAKI_FLASHCARDS = Object.freeze([
 ]);
 
 export const LESSONS = Object.freeze({
-  tenten: Object.freeze({ id: "tenten", label: "7/14　てんてん授業", cards: FLASHCARDS }),
-  nejimaki: Object.freeze({ id: "nejimaki", label: "7/2　ねじまき鳥先生", cards: NEJIMAKI_FLASHCARDS }),
+  tenten: Object.freeze({
+    id: "tenten",
+    label: "7/14　てんてん先生　基礎講義復習",
+    videoUrl: "https://www.youtube.com/watch?v=Gu7x_B0-3MU",
+    cards: FLASHCARDS,
+  }),
+  nejimaki: Object.freeze({
+    id: "nejimaki",
+    label: "7/2　ねじまき鳥先生　基礎講義②",
+    videoUrl: "https://www.youtube.com/watch?v=kBN6h2-U0rQ",
+    cards: NEJIMAKI_FLASHCARDS,
+  }),
 });
 
 /**

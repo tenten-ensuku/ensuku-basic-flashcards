@@ -1,6 +1,7 @@
-import { FLASHCARD_OVERRIDES_SCHEMA_SQL } from "../db/schema.mjs";
+import { FLASHCARD_OVERRIDES_SCHEMA_SQL, QUIZ_OVERRIDES_SCHEMA_SQL } from "../db/schema.mjs";
 
 const LESSON_IDS = new Set(["tenten", "nejimaki"]);
+const QUIZ_ID = "basic-order-2026-07-16";
 const TRUSTED_ORIGINS = new Set([
   "https://tenten-ensuku.github.io",
   "https://ensuku-basic-flashcards.kobotenmitsu.chatgpt.site",
@@ -39,6 +40,7 @@ function hasValidPassword(request, env, bodyPassword = "") {
 
 async function ensureSchema(db) {
   await db.prepare(FLASHCARD_OVERRIDES_SCHEMA_SQL).run();
+  await db.prepare(QUIZ_OVERRIDES_SCHEMA_SQL).run();
 }
 
 function parseCardPath(pathname) {
@@ -49,11 +51,20 @@ function parseCardPath(pathname) {
   return { lessonId: match[1], cardId };
 }
 
+function parseQuizPath(pathname) {
+  const match = pathname.match(/^\/api\/admin\/quizzes\/basic-order-2026-07-16\/(\d+)$/);
+  if (!match) return null;
+  const questionId = Number(match[1]);
+  if (!Number.isInteger(questionId) || questionId < 1 || questionId > 30) return null;
+  return { quizId: QUIZ_ID, questionId };
+}
+
 export async function handleAdminApi(request, env) {
   const url = new URL(request.url);
   const isApiPath = url.pathname === "/api/cards"
     || url.pathname === "/api/admin/login"
-    || url.pathname.startsWith("/api/admin/cards/");
+    || url.pathname.startsWith("/api/admin/cards/")
+    || url.pathname.startsWith("/api/admin/quizzes/");
   if (!isApiPath) return null;
 
   if (!isTrustedOrigin(request.headers.get("origin"))) {
@@ -85,17 +96,100 @@ export async function handleAdminApi(request, env) {
   await ensureSchema(env.DB);
 
   if (url.pathname === "/api/cards" && request.method === "GET") {
-    const result = await env.DB.prepare(
+    const cardResult = await env.DB.prepare(
       "SELECT lesson_id, card_id, question, answer, updated_at FROM flashcard_overrides ORDER BY lesson_id, card_id",
     ).all();
-    const overrides = (result.results ?? []).map((row) => ({
+    const quizResult = await env.DB.prepare(
+      "SELECT quiz_id, question_id, question, options_json, correct_index, explanation, updated_at FROM quiz_overrides ORDER BY quiz_id, question_id",
+    ).all();
+    const overrides = (cardResult.results ?? []).map((row) => ({
       lessonId: row.lesson_id,
       id: row.card_id,
       question: row.question,
       answer: row.answer,
       updatedAt: row.updated_at,
     }));
-    return json(request, { overrides });
+    const quizOverrides = (quizResult.results ?? []).flatMap((row) => {
+      try {
+        const options = JSON.parse(row.options_json);
+        if (!Array.isArray(options) || options.length !== 4 || options.some((option) => typeof option !== "string")) {
+          return [];
+        }
+        return [{
+          quizId: row.quiz_id,
+          id: row.question_id,
+          question: row.question,
+          options,
+          correctIndex: row.correct_index,
+          explanation: row.explanation,
+          updatedAt: row.updated_at,
+        }];
+      } catch {
+        return [];
+      }
+    });
+    return json(request, { overrides, quizOverrides });
+  }
+
+  const quizPath = parseQuizPath(url.pathname);
+  if (quizPath) {
+    if (!hasValidPassword(request, env)) {
+      return json(request, { error: "管理パスワードを確認してください。" }, 401);
+    }
+    if (request.method === "PUT") {
+      let body;
+      try {
+        body = await request.json();
+      } catch {
+        return json(request, { error: "入力内容を確認してください。" }, 400);
+      }
+      const question = typeof body?.question === "string" ? body.question.trim() : "";
+      const options = Array.isArray(body?.options)
+        ? body.options.map((option) => typeof option === "string" ? option.trim() : "")
+        : [];
+      const correctIndex = body?.correctIndex;
+      const explanation = typeof body?.explanation === "string" ? body.explanation.trim() : "";
+      if (!question || options.length !== 4 || options.some((option) => !option) || !explanation) {
+        return json(request, { error: "問題文・4つの選択肢・解説をすべて入力してください。" }, 400);
+      }
+      if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 3) {
+        return json(request, { error: "正解をA〜Dから選択してください。" }, 400);
+      }
+      if (question.length > 2000 || options.some((option) => option.length > 1000) || explanation.length > 5000) {
+        return json(request, { error: "文章が長すぎます。" }, 400);
+      }
+      const statement = env.DB.prepare(`
+        INSERT INTO quiz_overrides (
+          quiz_id, question_id, question, options_json, correct_index, explanation, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(quiz_id, question_id) DO UPDATE SET
+          question = excluded.question,
+          options_json = excluded.options_json,
+          correct_index = excluded.correct_index,
+          explanation = excluded.explanation,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+      await statement.bind(
+        quizPath.quizId,
+        quizPath.questionId,
+        question,
+        JSON.stringify(options),
+        correctIndex,
+        explanation,
+      ).run();
+      return json(request, {
+        ok: true,
+        question: { id: quizPath.questionId, question, options, correctIndex, explanation },
+      });
+    }
+    if (request.method === "DELETE") {
+      const statement = env.DB.prepare(
+        "DELETE FROM quiz_overrides WHERE quiz_id = ? AND question_id = ?",
+      );
+      await statement.bind(quizPath.quizId, quizPath.questionId).run();
+      return json(request, { ok: true });
+    }
+    return json(request, { error: "対応していない操作です。" }, 405);
   }
 
   const cardPath = parseCardPath(url.pathname);

@@ -16,6 +16,7 @@ import {
   BASIC_ORDER_QUIZ,
   QUIZ_LESSON,
   choiceLabel,
+  mergeQuizOverrides,
   scoreQuiz,
 } from "./lib/quiz.mjs";
 
@@ -34,6 +35,8 @@ type QuizQuestion = {
   correctIndex: number;
   explanation: string;
 };
+type QuizOverride = Omit<QuizQuestion, "chapter"> & { quizId: string };
+type AdminSection = LessonId | "quiz";
 type QuizAnswer = {
   questionId: number;
   selectedIndex: number;
@@ -56,6 +59,12 @@ const MODE_LABELS: Record<SessionMode, string> = {
   all: "全50問",
   review: "解き直しカード",
 };
+
+const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSection; label: string }> = [
+  { id: "quiz", label: "7/16　4択クイズ" },
+  { id: "tenten", label: "7/14　てんてん先生" },
+  { id: "nejimaki", label: "7/2　ねじまき鳥先生" },
+];
 
 type Suit = "m" | "p" | "s";
 
@@ -89,6 +98,25 @@ function withOverrides(overrides: CardOverride[]): CardsByLesson {
     }
   }
   return cards;
+}
+
+function cloneBaseQuiz(): QuizQuestion[] {
+  return BASIC_ORDER_QUIZ.map((question) => ({
+    ...question,
+    options: [...question.options],
+  }));
+}
+
+function withQuizOverrides(overrides: QuizOverride[]): QuizQuestion[] {
+  return mergeQuizOverrides(BASIC_ORDER_QUIZ, overrides, QUIZ_LESSON.id) as QuizQuestion[];
+}
+
+function quizQuestionsEqual(left: QuizQuestion | undefined, right: QuizQuestion | undefined) {
+  if (!left || !right) return false;
+  return left.question === right.question
+    && left.correctIndex === right.correctIndex
+    && left.explanation === right.explanation
+    && left.options.every((option, index) => option === right.options[index]);
 }
 
 function adminApiPath(path: string) {
@@ -189,7 +217,9 @@ export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
   const [cardsByLesson, setCardsByLesson] = useState<CardsByLesson>(cloneBaseCards);
   const [adminDrafts, setAdminDrafts] = useState<CardsByLesson>(cloneBaseCards);
-  const [adminLesson, setAdminLesson] = useState<LessonId>("tenten");
+  const [quizBank, setQuizBank] = useState<QuizQuestion[]>(cloneBaseQuiz);
+  const [adminQuizDrafts, setAdminQuizDrafts] = useState<QuizQuestion[]>(cloneBaseQuiz);
+  const [adminSection, setAdminSection] = useState<AdminSection>("quiz");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminError, setAdminError] = useState("");
   const [adminNotice, setAdminNotice] = useState("");
@@ -220,12 +250,15 @@ export default function Home() {
     fetch(adminApiPath("/api/cards"), { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("問題データを取得できませんでした。");
-        return response.json() as Promise<{ overrides?: CardOverride[] }>;
+        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[] }>;
       })
-      .then(({ overrides = [] }) => {
+      .then(({ overrides = [], quizOverrides = [] }) => {
         const nextCards = withOverrides(overrides);
+        const nextQuiz = withQuizOverrides(quizOverrides);
         setCardsByLesson(nextCards);
         setAdminDrafts(nextCards);
+        setQuizBank(nextQuiz);
+        setAdminQuizDrafts(nextQuiz);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -316,16 +349,17 @@ export default function Home() {
     [cardsByLesson, reviewCardIdsByLesson],
   );
 
-  const startQuiz = useCallback((questions: readonly QuizQuestion[] = BASIC_ORDER_QUIZ) => {
-    if (!questions.length) return;
-    setQuizQuestions([...questions]);
+  const startQuiz = useCallback((questions?: readonly QuizQuestion[]) => {
+    const source = questions ?? quizBank;
+    if (!source.length) return;
+    setQuizQuestions(source.map((question) => ({ ...question, options: [...question.options] })));
     setQuizIndex(0);
     setQuizSelectedIndex(null);
     setQuizAnswers([]);
     setElapsedSeconds(0);
     startedAtRef.current = Date.now();
     setScreen("quiz");
-  }, []);
+  }, [quizBank]);
 
   const answerQuiz = useCallback((selectedIndex: number) => {
     if (!currentQuizQuestion || quizSelectedIndex !== null) return;
@@ -376,6 +410,7 @@ export default function Home() {
         tenten: cardsByLesson.tenten.map((card) => ({ ...card })),
         nejimaki: cardsByLesson.nejimaki.map((card) => ({ ...card })),
       });
+      setAdminQuizDrafts(quizBank.map((question) => ({ ...question, options: [...question.options] })));
       setScreen("admin");
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "ログインできませんでした。");
@@ -391,6 +426,31 @@ export default function Home() {
         card.id === cardId ? { ...card, [field]: value } : card,
       ),
     }));
+  };
+
+  const updateAdminQuizDraft = (
+    questionId: number,
+    field: "question" | "explanation",
+    value: string,
+  ) => {
+    setAdminQuizDrafts((current) => current.map((question) =>
+      question.id === questionId ? { ...question, [field]: value } : question,
+    ));
+  };
+
+  const updateAdminQuizOption = (questionId: number, optionIndex: number, value: string) => {
+    setAdminQuizDrafts((current) => current.map((question) => {
+      if (question.id !== questionId) return question;
+      const options = [...question.options];
+      options[optionIndex] = value;
+      return { ...question, options };
+    }));
+  };
+
+  const updateAdminQuizCorrectIndex = (questionId: number, correctIndex: number) => {
+    setAdminQuizDrafts((current) => current.map((question) =>
+      question.id === questionId ? { ...question, correctIndex } : question,
+    ));
   };
 
   const saveAdminCard = async (lessonId: LessonId, card: Flashcard) => {
@@ -448,6 +508,68 @@ export default function Home() {
         [lessonId]: current[lessonId].map((item) => item.id === cardId ? restoredCard : item),
       }));
       setAdminNotice(`Q${String(cardId).padStart(2, "0")}を初期文に戻しました。`);
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "初期文に戻せませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const saveAdminQuizQuestion = async (question: QuizQuestion) => {
+    setAdminError("");
+    setAdminNotice("");
+    setAdminBusyCard(question.id);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/quizzes/${QUIZ_LESSON.id}/${question.id}`), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Password": adminPassword,
+        },
+        body: JSON.stringify({
+          question: question.question,
+          options: question.options,
+          correctIndex: question.correctIndex,
+          explanation: question.explanation,
+        }),
+      });
+      const payload = await response.json() as {
+        error?: string;
+        question?: Omit<QuizQuestion, "chapter">;
+      };
+      if (!response.ok || !payload.question) throw new Error(payload.error ?? "保存できませんでした。");
+      const savedQuestion: QuizQuestion = {
+        ...question,
+        ...payload.question,
+        options: [...payload.question.options],
+      };
+      setQuizBank((current) => current.map((item) => item.id === question.id ? savedQuestion : item));
+      setAdminQuizDrafts((current) => current.map((item) => item.id === question.id ? savedQuestion : item));
+      setAdminNotice(`4択クイズ Q${String(question.id).padStart(2, "0")}を保存しました。`);
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "保存できませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const restoreAdminQuizQuestion = async (questionId: number) => {
+    setAdminError("");
+    setAdminNotice("");
+    setAdminBusyCard(questionId);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/quizzes/${QUIZ_LESSON.id}/${questionId}`), {
+        method: "DELETE",
+        headers: { "X-Admin-Password": adminPassword },
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "初期文に戻せませんでした。");
+      const baseQuestion = BASIC_ORDER_QUIZ.find((question) => question.id === questionId);
+      if (!baseQuestion) throw new Error("初期データが見つかりません。");
+      const restoredQuestion: QuizQuestion = { ...baseQuestion, options: [...baseQuestion.options] };
+      setQuizBank((current) => current.map((item) => item.id === questionId ? restoredQuestion : item));
+      setAdminQuizDrafts((current) => current.map((item) => item.id === questionId ? restoredQuestion : item));
+      setAdminNotice(`4択クイズ Q${String(questionId).padStart(2, "0")}を初期文に戻しました。`);
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "初期文に戻せませんでした。");
     } finally {
@@ -683,15 +805,20 @@ export default function Home() {
                     <span className="mode-card__arrow" aria-hidden="true">→</span>
                   </button>
                 </div>
-                <button
-                  className="text-button lesson-list-button"
-                  onClick={() => {
-                    setSelectedLesson(lessonId);
-                    setScreen("list");
-                  }}
-                >
-                  <span aria-hidden="true">☰</span> この授業の問題一覧を見る
-                </button>
+                <div className="lesson-panel-actions">
+                  <a className="lesson-video-link" href={lesson.videoUrl} target="_blank" rel="noreferrer">
+                    <span aria-hidden="true">▶</span> 授業動画を見る
+                  </a>
+                  <button
+                    className="text-button lesson-list-button"
+                    onClick={() => {
+                      setSelectedLesson(lessonId);
+                      setScreen("list");
+                    }}
+                  >
+                    <span aria-hidden="true">☰</span> 問題一覧を見る
+                  </button>
+                </div>
               </section>
             );
           })}
@@ -898,21 +1025,21 @@ export default function Home() {
             保存した内容は公開中の問題集へ反映されます。牌表記は「2234ｍ」「456p」のように入力してください。
           </p>
 
-          <div className="admin-lesson-tabs" role="tablist" aria-label="授業を選択">
-            {(Object.keys(LESSONS) as LessonId[]).map((lessonId) => (
+          <div className="admin-lesson-tabs" role="tablist" aria-label="問題集を選択">
+            {ADMIN_SECTIONS.map((section) => (
               <button
-                key={lessonId}
+                key={section.id}
                 type="button"
                 role="tab"
-                aria-selected={adminLesson === lessonId}
-                className={adminLesson === lessonId ? "is-active" : ""}
+                aria-selected={adminSection === section.id}
+                className={adminSection === section.id ? "is-active" : ""}
                 onClick={() => {
-                  setAdminLesson(lessonId);
+                  setAdminSection(section.id);
                   setAdminError("");
                   setAdminNotice("");
                 }}
               >
-                {LESSONS[lessonId].label}
+                {section.label}
               </button>
             ))}
           </div>
@@ -923,59 +1050,148 @@ export default function Home() {
             </p>
           )}
 
-          <div className="admin-card-list">
-            {adminDrafts[adminLesson].map((card) => {
-              const isChanged = card.question !== cardsByLesson[adminLesson][card.id - 1]?.question
-                || card.answer !== cardsByLesson[adminLesson][card.id - 1]?.answer;
-              const hasOverride = cardsByLesson[adminLesson][card.id - 1]?.question !== LESSONS[adminLesson].cards[card.id - 1]?.question
-                || cardsByLesson[adminLesson][card.id - 1]?.answer !== LESSONS[adminLesson].cards[card.id - 1]?.answer;
-              return (
-                <details className="admin-card-editor" key={`${adminLesson}-${card.id}`}>
-                  <summary>
-                    <span>Q{String(card.id).padStart(2, "0")}</span>
-                    <strong>{card.question || "（問題文未入力）"}</strong>
-                    {hasOverride && <small>編集済み</small>}
-                    <i aria-hidden="true">＋</i>
-                  </summary>
-                  <div className="admin-card-form">
-                    <label htmlFor={`question-${adminLesson}-${card.id}`}>問題文</label>
-                    <textarea
-                      id={`question-${adminLesson}-${card.id}`}
-                      value={card.question}
-                      onChange={(event) => updateAdminDraft(adminLesson, card.id, "question", event.target.value)}
-                      rows={4}
-                    />
-                    <label htmlFor={`answer-${adminLesson}-${card.id}`}>解答文</label>
-                    <textarea
-                      id={`answer-${adminLesson}-${card.id}`}
-                      value={card.answer}
-                      onChange={(event) => updateAdminDraft(adminLesson, card.id, "answer", event.target.value)}
-                      rows={6}
-                    />
-                    <div className="admin-card-actions">
-                      <button
-                        type="button"
-                        className="admin-restore-button"
-                        onClick={() => restoreAdminCard(adminLesson, card.id)}
-                        disabled={adminBusyCard !== null || !hasOverride}
-                      >
-                        初期文に戻す
-                      </button>
-                      <button
-                        type="button"
-                        className="admin-save-button"
-                        onClick={() => saveAdminCard(adminLesson, card)}
-                        disabled={adminBusyCard !== null || !isChanged || !card.question.trim() || !card.answer.trim()}
-                        data-testid={`save-${adminLesson}-${card.id}`}
-                      >
-                        {adminBusyCard === card.id ? "保存中…" : "この問題を保存"}
-                      </button>
+          {adminSection === "quiz" ? (
+            <div className="admin-card-list" data-testid="admin-quiz-list">
+              {adminQuizDrafts.map((question) => {
+                const publishedQuestion = quizBank[question.id - 1];
+                const baseQuestion = BASIC_ORDER_QUIZ[question.id - 1];
+                const isChanged = !quizQuestionsEqual(question, publishedQuestion);
+                const hasOverride = !quizQuestionsEqual(publishedQuestion, baseQuestion);
+                const isComplete = question.question.trim()
+                  && question.explanation.trim()
+                  && question.options.every((option) => option.trim());
+                return (
+                  <details className="admin-card-editor" key={`quiz-${question.id}`}>
+                    <summary>
+                      <span>Q{String(question.id).padStart(2, "0")}</span>
+                      <strong>{question.question || "（問題文未入力）"}</strong>
+                      {hasOverride && <small>編集済み</small>}
+                      <i aria-hidden="true">＋</i>
+                    </summary>
+                    <div className="admin-card-form admin-quiz-form">
+                      <p className="admin-quiz-chapter">{question.chapter}</p>
+                      <label htmlFor={`quiz-question-${question.id}`}>問題文</label>
+                      <textarea
+                        id={`quiz-question-${question.id}`}
+                        value={question.question}
+                        onChange={(event) => updateAdminQuizDraft(question.id, "question", event.target.value)}
+                        rows={4}
+                      />
+                      <fieldset className="admin-option-fields">
+                        <legend>選択肢</legend>
+                        {question.options.map((option, optionIndex) => (
+                          <label key={`${question.id}-option-${optionIndex}`}>
+                            <span>{choiceLabel(optionIndex)}</span>
+                            <textarea
+                              value={option}
+                              onChange={(event) => updateAdminQuizOption(question.id, optionIndex, event.target.value)}
+                              rows={2}
+                              aria-label={`選択肢${choiceLabel(optionIndex)}`}
+                            />
+                          </label>
+                        ))}
+                      </fieldset>
+                      <fieldset className="admin-correct-options">
+                        <legend>正解</legend>
+                        {question.options.map((_, optionIndex) => (
+                          <label key={`${question.id}-correct-${optionIndex}`}>
+                            <input
+                              type="radio"
+                              name={`correct-${question.id}`}
+                              value={optionIndex}
+                              checked={question.correctIndex === optionIndex}
+                              onChange={() => updateAdminQuizCorrectIndex(question.id, optionIndex)}
+                            />
+                            <span>{choiceLabel(optionIndex)}</span>
+                          </label>
+                        ))}
+                      </fieldset>
+                      <label htmlFor={`quiz-explanation-${question.id}`}>解説（答え）</label>
+                      <textarea
+                        id={`quiz-explanation-${question.id}`}
+                        value={question.explanation}
+                        onChange={(event) => updateAdminQuizDraft(question.id, "explanation", event.target.value)}
+                        rows={5}
+                      />
+                      <div className="admin-card-actions">
+                        <button
+                          type="button"
+                          className="admin-restore-button"
+                          onClick={() => restoreAdminQuizQuestion(question.id)}
+                          disabled={adminBusyCard !== null || !hasOverride}
+                        >
+                          初期文に戻す
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-save-button"
+                          onClick={() => saveAdminQuizQuestion(question)}
+                          disabled={adminBusyCard !== null || !isChanged || !isComplete}
+                          data-testid={`save-quiz-${question.id}`}
+                        >
+                          {adminBusyCard === question.id ? "保存中…" : "この問題を保存"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </details>
-              );
-            })}
-          </div>
+                  </details>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="admin-card-list">
+              {adminDrafts[adminSection].map((card) => {
+                const isChanged = card.question !== cardsByLesson[adminSection][card.id - 1]?.question
+                  || card.answer !== cardsByLesson[adminSection][card.id - 1]?.answer;
+                const hasOverride = cardsByLesson[adminSection][card.id - 1]?.question !== LESSONS[adminSection].cards[card.id - 1]?.question
+                  || cardsByLesson[adminSection][card.id - 1]?.answer !== LESSONS[adminSection].cards[card.id - 1]?.answer;
+                return (
+                  <details className="admin-card-editor" key={`${adminSection}-${card.id}`}>
+                    <summary>
+                      <span>Q{String(card.id).padStart(2, "0")}</span>
+                      <strong>{card.question || "（問題文未入力）"}</strong>
+                      {hasOverride && <small>編集済み</small>}
+                      <i aria-hidden="true">＋</i>
+                    </summary>
+                    <div className="admin-card-form">
+                      <label htmlFor={`question-${adminSection}-${card.id}`}>問題文</label>
+                      <textarea
+                        id={`question-${adminSection}-${card.id}`}
+                        value={card.question}
+                        onChange={(event) => updateAdminDraft(adminSection, card.id, "question", event.target.value)}
+                        rows={4}
+                      />
+                      <label htmlFor={`answer-${adminSection}-${card.id}`}>解答文</label>
+                      <textarea
+                        id={`answer-${adminSection}-${card.id}`}
+                        value={card.answer}
+                        onChange={(event) => updateAdminDraft(adminSection, card.id, "answer", event.target.value)}
+                        rows={6}
+                      />
+                      <div className="admin-card-actions">
+                        <button
+                          type="button"
+                          className="admin-restore-button"
+                          onClick={() => restoreAdminCard(adminSection, card.id)}
+                          disabled={adminBusyCard !== null || !hasOverride}
+                        >
+                          初期文に戻す
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-save-button"
+                          onClick={() => saveAdminCard(adminSection, card)}
+                          disabled={adminBusyCard !== null || !isChanged || !card.question.trim() || !card.answer.trim()}
+                          data-testid={`save-${adminSection}-${card.id}`}
+                        >
+                          {adminBusyCard === card.id ? "保存中…" : "この問題を保存"}
+                        </button>
+                      </div>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
 

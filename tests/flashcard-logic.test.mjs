@@ -15,16 +15,18 @@ import {
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships two 50-card lessons as ver13", () => {
-  assert.equal(APP_VERSION, 13);
+test("ships two 50-card lessons as ver14", () => {
+  assert.equal(APP_VERSION, 14);
   assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v4");
   assert.equal(LEGACY_STORAGE_KEY, "ensuku-basic-flashcards-v3");
   assert.equal(FLASHCARDS.length, 50);
   assert.equal(NEJIMAKI_FLASHCARDS.length, 50);
   assert.deepEqual(FLASHCARDS.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));
   assert.deepEqual(NEJIMAKI_FLASHCARDS.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));
-  assert.equal(LESSONS.tenten.label, "7/14　てんてん授業");
-  assert.equal(LESSONS.nejimaki.label, "7/2　ねじまき鳥先生");
+  assert.equal(LESSONS.tenten.label, "7/14　てんてん先生　基礎講義復習");
+  assert.equal(LESSONS.tenten.videoUrl, "https://www.youtube.com/watch?v=Gu7x_B0-3MU");
+  assert.equal(LESSONS.nejimaki.label, "7/2　ねじまき鳥先生　基礎講義②");
+  assert.equal(LESSONS.nejimaki.videoUrl, "https://www.youtube.com/watch?v=kBN6h2-U0rQ");
 
   const allText = FLASHCARDS.flatMap(({ question, answer }) => [question, answer]).join("\n");
   for (const typo of [

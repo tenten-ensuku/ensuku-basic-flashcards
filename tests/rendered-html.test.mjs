@@ -31,20 +31,22 @@ test("renders the production flashcard home screen", async () => {
   assert.match(html, /<html lang="ja">/i);
   assert.match(html, /<title>一向聴 基礎講義フラッシュカード<\/title>/i);
   assert.match(html, /一向聴 基礎講義フラッシュカード/);
-  assert.match(html, /ver(?:<!-- -->)?13/);
+  assert.match(html, /ver(?:<!-- -->)?14/);
   assert.match(html, /授業の復習/);
   assert.match(html, /7\/16　ねじまき鳥先生/);
   assert.match(html, /基本序列マスタークイズ/);
   assert.match(html, /https:\/\/youtu\.be\/NE1UHrZkg6g/);
   assert.match(html, /クイズを始める/);
-  assert.match(html, /7\/14　てんてん授業/);
-  assert.match(html, /7\/2　ねじまき鳥先生/);
+  assert.match(html, /7\/14　てんてん先生　基礎講義復習/);
+  assert.match(html, /https:\/\/www\.youtube\.com\/watch\?v=Gu7x_B0-3MU/);
+  assert.match(html, /7\/2　ねじまき鳥先生　基礎講義②/);
+  assert.match(html, /https:\/\/www\.youtube\.com\/watch\?v=kBN6h2-U0rQ/);
   assert.match(html, /1 QUIZ \/ 2 FLASHCARD LESSONS/);
   assert.doesNotMatch(html, /ランダム10問/);
   assert.match(html, /全50問/);
   assert.match(html, /解き直しカード/);
   assert.match(html, /管理画面/);
-  assert.equal(html.indexOf("7/16　ねじまき鳥先生") < html.indexOf("7/14　てんてん授業"), true);
+  assert.equal(html.indexOf("7/16　ねじまき鳥先生") < html.indexOf("7/14　てんてん先生　基礎講義復習"), true);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 

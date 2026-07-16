@@ -4,6 +4,7 @@ import {
   BASIC_ORDER_QUIZ,
   QUIZ_LESSON,
   choiceLabel,
+  mergeQuizOverrides,
   scoreQuiz,
 } from "../app/lib/quiz.mjs";
 
@@ -53,4 +54,21 @@ test("scores complete and retry-sized quiz sessions", () => {
     { correct: 2, wrong: 1, rate: 67 },
   );
   assert.deepEqual(scoreQuiz([], 0), { correct: 0, wrong: 0, rate: 0 });
+});
+
+test("merges public quiz overrides without mutating bundled questions", () => {
+  const edited = mergeQuizOverrides(BASIC_ORDER_QUIZ, [{
+    quizId: QUIZ_LESSON.id,
+    id: 1,
+    question: "管理画面で編集した4択問題",
+    options: ["編集A", "編集B", "編集C", "編集D"],
+    correctIndex: 3,
+    explanation: "管理画面で編集した解説",
+  }]);
+  assert.equal(edited[0].question, "管理画面で編集した4択問題");
+  assert.deepEqual(edited[0].options, ["編集A", "編集B", "編集C", "編集D"]);
+  assert.equal(edited[0].correctIndex, 3);
+  assert.notEqual(edited[0], BASIC_ORDER_QUIZ[0]);
+  assert.notEqual(edited[0].options, BASIC_ORDER_QUIZ[0].options);
+  assert.notEqual(BASIC_ORDER_QUIZ[0].question, "管理画面で編集した4択問題");
 });

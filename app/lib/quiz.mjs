@@ -305,6 +305,23 @@ export const BASIC_ORDER_QUIZ = Object.freeze([
   },
 ]);
 
+export function mergeQuizOverrides(baseQuestions, overrides, quizId = QUIZ_LESSON.id) {
+  const questions = baseQuestions.map((question) => ({ ...question, options: [...question.options] }));
+  for (const override of overrides) {
+    if (override.quizId !== quizId) continue;
+    const index = questions.findIndex((question) => question.id === override.id);
+    if (index < 0 || !override.question || !override.explanation || override.options?.length !== 4) continue;
+    questions[index] = {
+      ...questions[index],
+      question: override.question,
+      options: [...override.options],
+      correctIndex: override.correctIndex,
+      explanation: override.explanation,
+    };
+  }
+  return questions;
+}
+
 export function choiceLabel(index) {
   return String.fromCharCode(65 + index);
 }

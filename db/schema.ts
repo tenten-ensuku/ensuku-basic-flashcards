@@ -1,1 +1,1 @@
-export { FLASHCARD_OVERRIDES_SCHEMA_SQL } from "./schema.mjs";
+export { FLASHCARD_OVERRIDES_SCHEMA_SQL, QUIZ_OVERRIDES_SCHEMA_SQL } from "./schema.mjs";
