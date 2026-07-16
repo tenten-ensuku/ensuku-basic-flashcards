@@ -767,7 +767,19 @@ export default function Home() {
                 <div className="section-heading">
                   <div>
                     <p className="section-kicker">SELECT MODE</p>
-                    <h2>{lesson.label}</h2>
+                    <div className="lesson-title-row">
+                      <h2>{lesson.label}</h2>
+                      <a
+                        className="youtube-icon-button"
+                        href={lesson.videoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`${lesson.label}の授業動画をYouTubeで見る`}
+                        title="授業動画をYouTubeで見る"
+                      >
+                        <span className="youtube-play-mark" aria-hidden="true" />
+                      </a>
+                    </div>
                   </div>
                   <span className="review-count">
                     解き直し <strong>{lessonReviewIds.length}</strong>枚
@@ -805,20 +817,15 @@ export default function Home() {
                     <span className="mode-card__arrow" aria-hidden="true">→</span>
                   </button>
                 </div>
-                <div className="lesson-panel-actions">
-                  <a className="lesson-video-link" href={lesson.videoUrl} target="_blank" rel="noreferrer">
-                    <span aria-hidden="true">▶</span> 授業動画を見る
-                  </a>
-                  <button
-                    className="text-button lesson-list-button"
-                    onClick={() => {
-                      setSelectedLesson(lessonId);
-                      setScreen("list");
-                    }}
-                  >
-                    <span aria-hidden="true">☰</span> 問題一覧を見る
-                  </button>
-                </div>
+                <button
+                  className="text-button lesson-list-button"
+                  onClick={() => {
+                    setSelectedLesson(lessonId);
+                    setScreen("list");
+                  }}
+                >
+                  <span aria-hidden="true">☰</span> 問題一覧を見る
+                </button>
               </section>
             );
           })}
