@@ -5,6 +5,8 @@ export const QUIZ_LESSON = Object.freeze({
   videoUrl: "https://youtu.be/NE1UHrZkg6g",
 });
 
+export const QUIZ_STORAGE_KEY = "ensuku-basic-order-quiz-v1";
+
 /**
  * @typedef {{
  *   id: number,
@@ -334,4 +336,53 @@ export function scoreQuiz(answers, total) {
     wrong: Math.max(0, count - correct),
     rate: count ? Math.round((correct / count) * 100) : 0,
   };
+}
+
+export function readQuizProgress(raw) {
+  const empty = { reviewQuestionIds: [], session: null };
+  if (!raw) return empty;
+  try {
+    const parsed = JSON.parse(raw);
+    const sanitizeIds = (ids) => [...new Set(
+      Array.isArray(ids)
+        ? ids.filter((id) => Number.isInteger(id) && id >= 1 && id <= BASIC_ORDER_QUIZ.length)
+        : [],
+    )].sort((a, b) => a - b);
+    const reviewQuestionIds = sanitizeIds(parsed.reviewQuestionIds);
+    if (!parsed.session || typeof parsed.session !== "object") {
+      return { reviewQuestionIds, session: null };
+    }
+    const questionIds = sanitizeIds(parsed.session.questionIds);
+    if (!questionIds.length) return { reviewQuestionIds, session: null };
+    const questionIdSet = new Set(questionIds);
+    const answers = Array.isArray(parsed.session.answers)
+      ? parsed.session.answers.flatMap((answer) => {
+        const questionId = answer?.questionId;
+        const selectedIndex = answer?.selectedIndex;
+        return questionIdSet.has(questionId)
+          && Number.isInteger(selectedIndex)
+          && selectedIndex >= 0
+          && selectedIndex <= 3
+          ? [{ questionId, selectedIndex }]
+          : [];
+      }).filter((answer, index, list) =>
+        list.findIndex((item) => item.questionId === answer.questionId) === index,
+      )
+      : [];
+    return {
+      reviewQuestionIds,
+      session: {
+        questionIds,
+        currentIndex: Math.min(
+          Math.max(0, Number.isInteger(parsed.session.currentIndex) ? parsed.session.currentIndex : 0),
+          questionIds.length - 1,
+        ),
+        answers,
+        elapsedSeconds: Math.max(0, Math.floor(Number(parsed.session.elapsedSeconds) || 0)),
+        updatedAt: typeof parsed.session.updatedAt === "string" ? parsed.session.updatedAt : "",
+      },
+    };
+  } catch {
+    return empty;
+  }
 }

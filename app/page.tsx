@@ -15,12 +15,14 @@ import {
 import {
   BASIC_ORDER_QUIZ,
   QUIZ_LESSON,
+  QUIZ_STORAGE_KEY,
   choiceLabel,
   mergeQuizOverrides,
+  readQuizProgress,
   scoreQuiz,
 } from "./lib/quiz.mjs";
 
-type Screen = "home" | "session" | "result" | "list" | "quiz" | "quiz-result" | "admin-login" | "admin";
+type Screen = "home" | "session" | "result" | "list" | "quiz" | "quiz-list" | "quiz-result" | "admin-login" | "admin";
 type SessionMode = "all" | "review";
 type Rating = "known" | "again";
 type LessonId = keyof typeof LESSONS;
@@ -41,6 +43,13 @@ type QuizAnswer = {
   questionId: number;
   selectedIndex: number;
   correct: boolean;
+};
+type SavedQuizSession = {
+  questionIds: number[];
+  currentIndex: number;
+  answers: Array<{ questionId: number; selectedIndex: number }>;
+  elapsedSeconds: number;
+  updatedAt: string;
 };
 type ReviewCardIdsByLesson = Record<LessonId, number[]>;
 type LastSession = {
@@ -198,6 +207,32 @@ function safeSave(reviewCardIdsByLesson: ReviewCardIdsByLesson, lastSession: Las
   }
 }
 
+function safeSaveQuiz(reviewQuestionIds: number[], session: SavedQuizSession | null) {
+  try {
+    window.localStorage.setItem(
+      QUIZ_STORAGE_KEY,
+      JSON.stringify({ reviewQuestionIds, session }),
+    );
+  } catch {
+    // 保存不可でも、現在のセッションはそのまま続ける。
+  }
+}
+
+function createSavedQuizSession(
+  questions: readonly QuizQuestion[],
+  currentIndex: number,
+  answers: readonly QuizAnswer[],
+  elapsedSeconds: number,
+): SavedQuizSession {
+  return {
+    questionIds: questions.map((question) => question.id),
+    currentIndex,
+    answers: answers.map(({ questionId, selectedIndex }) => ({ questionId, selectedIndex })),
+    elapsedSeconds: Math.max(0, Math.floor(elapsedSeconds)),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function HomeHeader({ compact = false }: { compact?: boolean }) {
   return (
     <header className={compact ? "brand brand--compact" : "brand"}>
@@ -206,7 +241,7 @@ function HomeHeader({ compact = false }: { compact?: boolean }) {
       </div>
       <div>
         <p className="brand__eyebrow">ENSUKU BASIC LECTURE</p>
-        <h1>一向聴 基礎講義フラッシュカード</h1>
+        <h1 id={compact ? undefined : "app-title"}>授業の復習に</h1>
       </div>
       <span className="version">ver{APP_VERSION}</span>
     </header>
@@ -240,8 +275,9 @@ export default function Home() {
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [quizIndex, setQuizIndex] = useState(0);
-  const [quizSelectedIndex, setQuizSelectedIndex] = useState<number | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<QuizAnswer[]>([]);
+  const [quizReviewIds, setQuizReviewIds] = useState<number[]>([]);
+  const [savedQuizSession, setSavedQuizSession] = useState<SavedQuizSession | null>(null);
   const startedAtRef = useRef(0);
   const resultRef = useRef<LastSession | null>(null);
 
@@ -265,6 +301,19 @@ export default function Home() {
         // APIに接続できない場合も、収録済みの問題で学習を続けられる。
       });
     return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const stored = readQuizProgress(window.localStorage.getItem(QUIZ_STORAGE_KEY));
+        setQuizReviewIds(stored.reviewQuestionIds);
+        setSavedQuizSession(stored.session as SavedQuizSession | null);
+      } catch {
+        // localStorageが使えない環境では初期値のまま動作する。
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -309,11 +358,14 @@ export default function Home() {
   const reviewSet = useMemo(() => new Set(reviewCardIds), [reviewCardIds]);
   const currentCard = sessionCards[cardIndex];
   const currentQuizQuestion = quizQuestions[quizIndex];
+  const currentQuizAnswer = quizAnswers.find((answer) => answer.questionId === currentQuizQuestion?.id);
+  const quizSelectedIndex = currentQuizAnswer?.selectedIndex ?? null;
+  const quizReviewSet = useMemo(() => new Set(quizReviewIds), [quizReviewIds]);
   const progress = sessionCards.length
     ? ((cardIndex + (revealed ? 0.5 : 0)) / sessionCards.length) * 100
     : 0;
   const quizProgress = quizQuestions.length
-    ? ((quizIndex + (quizSelectedIndex === null ? 0 : 1)) / quizQuestions.length) * 100
+    ? (quizAnswers.length / quizQuestions.length) * 100
     : 0;
   const quizResult = useMemo(
     () => scoreQuiz(quizAnswers, quizQuestions.length),
@@ -352,39 +404,101 @@ export default function Home() {
   const startQuiz = useCallback((questions?: readonly QuizQuestion[]) => {
     const source = questions ?? quizBank;
     if (!source.length) return;
-    setQuizQuestions(source.map((question) => ({ ...question, options: [...question.options] })));
+    const nextQuestions = source.map((question) => ({ ...question, options: [...question.options] }));
+    const nextSession = createSavedQuizSession(nextQuestions, 0, [], 0);
+    setQuizQuestions(nextQuestions);
     setQuizIndex(0);
-    setQuizSelectedIndex(null);
     setQuizAnswers([]);
     setElapsedSeconds(0);
+    setSavedQuizSession(nextSession);
+    safeSaveQuiz(quizReviewIds, nextSession);
     startedAtRef.current = Date.now();
     setScreen("quiz");
-  }, [quizBank]);
+  }, [quizBank, quizReviewIds]);
+
+  const resumeQuiz = useCallback(() => {
+    if (!savedQuizSession) return;
+    const questionMap = new Map(quizBank.map((question) => [question.id, question]));
+    const resumedQuestions = savedQuizSession.questionIds.flatMap((id) => {
+      const question = questionMap.get(id);
+      return question ? [{ ...question, options: [...question.options] }] : [];
+    });
+    if (!resumedQuestions.length) return;
+    const resumedIds = new Set(resumedQuestions.map((question) => question.id));
+    const resumedAnswers = savedQuizSession.answers.flatMap(({ questionId, selectedIndex }) => {
+      const question = questionMap.get(questionId);
+      return question && resumedIds.has(questionId)
+        ? [{ questionId, selectedIndex, correct: selectedIndex === question.correctIndex }]
+        : [];
+    });
+    const nextIndex = Math.min(savedQuizSession.currentIndex, resumedQuestions.length - 1);
+    setQuizQuestions(resumedQuestions);
+    setQuizIndex(nextIndex);
+    setQuizAnswers(resumedAnswers);
+    setElapsedSeconds(savedQuizSession.elapsedSeconds);
+    startedAtRef.current = Date.now() - (savedQuizSession.elapsedSeconds * 1000);
+    setScreen("quiz");
+  }, [quizBank, savedQuizSession]);
+
+  const saveQuizSnapshot = useCallback((index: number, answers: QuizAnswer[]) => {
+    if (!quizQuestions.length) return;
+    const elapsed = Math.max(0, Math.floor((Date.now() - startedAtRef.current) / 1000));
+    const session = createSavedQuizSession(quizQuestions, index, answers, elapsed);
+    setSavedQuizSession(session);
+    safeSaveQuiz(quizReviewIds, session);
+  }, [quizQuestions, quizReviewIds]);
 
   const answerQuiz = useCallback((selectedIndex: number) => {
     if (!currentQuizQuestion || quizSelectedIndex !== null) return;
     if (selectedIndex < 0 || selectedIndex >= currentQuizQuestion.options.length) return;
-    setQuizSelectedIndex(selectedIndex);
-    setQuizAnswers((answers) => [
-      ...answers,
-      {
-        questionId: currentQuizQuestion.id,
-        selectedIndex,
-        correct: selectedIndex === currentQuizQuestion.correctIndex,
-      },
-    ]);
-  }, [currentQuizQuestion, quizSelectedIndex]);
+    const nextAnswers = [...quizAnswers, {
+      questionId: currentQuizQuestion.id,
+      selectedIndex,
+      correct: selectedIndex === currentQuizQuestion.correctIndex,
+    }];
+    setQuizAnswers(nextAnswers);
+    saveQuizSnapshot(quizIndex, nextAnswers);
+  }, [currentQuizQuestion, quizAnswers, quizIndex, quizSelectedIndex, saveQuizSnapshot]);
+
+  const goToQuizIndex = useCallback((nextIndex: number) => {
+    if (!quizQuestions.length) return;
+    const boundedIndex = Math.max(0, Math.min(nextIndex, quizQuestions.length - 1));
+    setQuizIndex(boundedIndex);
+    saveQuizSnapshot(boundedIndex, quizAnswers);
+  }, [quizAnswers, quizQuestions.length, saveQuizSnapshot]);
 
   const advanceQuiz = useCallback(() => {
-    if (quizSelectedIndex === null || !currentQuizQuestion) return;
-    if (quizIndex >= quizQuestions.length - 1) {
+    if (!currentQuizQuestion) return;
+    if (quizIndex < quizQuestions.length - 1) {
+      goToQuizIndex(quizIndex + 1);
+      return;
+    }
+    if (quizAnswers.length >= quizQuestions.length) {
       setElapsedSeconds(Math.floor((Date.now() - startedAtRef.current) / 1000));
+      setSavedQuizSession(null);
+      safeSaveQuiz(quizReviewIds, null);
       setScreen("quiz-result");
       return;
     }
-    setQuizIndex((index) => index + 1);
-    setQuizSelectedIndex(null);
-  }, [currentQuizQuestion, quizIndex, quizQuestions.length, quizSelectedIndex]);
+    const answeredIds = new Set(quizAnswers.map((answer) => answer.questionId));
+    const firstUnanswered = quizQuestions.findIndex((question) => !answeredIds.has(question.id));
+    if (firstUnanswered >= 0) goToQuizIndex(firstUnanswered);
+  }, [currentQuizQuestion, goToQuizIndex, quizAnswers, quizIndex, quizQuestions, quizReviewIds]);
+
+  const toggleQuizReview = useCallback((questionId: number) => {
+    const nextReviewIds = quizReviewIds.includes(questionId)
+      ? quizReviewIds.filter((id) => id !== questionId)
+      : [...quizReviewIds, questionId].sort((left, right) => left - right);
+    setQuizReviewIds(nextReviewIds);
+    if (screen === "quiz" && quizQuestions.length) {
+      const elapsed = Math.max(0, Math.floor((Date.now() - startedAtRef.current) / 1000));
+      const session = createSavedQuizSession(quizQuestions, quizIndex, quizAnswers, elapsed);
+      setSavedQuizSession(session);
+      safeSaveQuiz(nextReviewIds, session);
+    } else {
+      safeSaveQuiz(nextReviewIds, savedQuizSession);
+    }
+  }, [quizAnswers, quizIndex, quizQuestions, quizReviewIds, savedQuizSession, screen]);
 
   const openAdminLogin = () => {
     setAdminPassword("");
@@ -677,7 +791,12 @@ export default function Home() {
   useEffect(() => {
     if (screen !== "quiz") return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (quizSelectedIndex !== null && event.key === "Enter") {
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        goToQuizIndex(quizIndex - 1);
+        return;
+      }
+      if (event.key === "ArrowRight" || event.key === "Enter") {
         event.preventDefault();
         advanceQuiz();
         return;
@@ -694,7 +813,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [advanceQuiz, answerQuiz, quizSelectedIndex, screen]);
+  }, [advanceQuiz, answerQuiz, goToQuizIndex, quizIndex, quizSelectedIndex, screen]);
 
   const leaveSession = () => {
     setScreen("home");
@@ -703,10 +822,8 @@ export default function Home() {
   };
 
   const leaveQuiz = () => {
+    if (screen === "quiz" && quizQuestions.length) saveQuizSnapshot(quizIndex, quizAnswers);
     setScreen("home");
-    setQuizQuestions([]);
-    setQuizSelectedIndex(null);
-    setQuizAnswers([]);
   };
 
   return (
@@ -717,45 +834,62 @@ export default function Home() {
         <section className="screen screen--home" aria-labelledby="app-title">
           <HomeHeader />
 
-          <div className="hero-panel">
-            <div className="hero-copy">
-              <p className="hero-kicker">1 QUIZ / 2 FLASHCARD LESSONS</p>
-              <h2 id="app-title">授業の復習</h2>
-              <p>
-                4択クイズで理解を確認したり、カードをめくって思い出す練習をしたり。
-                授業ごとに、自分のペースで何度でも復習できます。
-              </p>
-            </div>
-            <div className="hero-seal" aria-hidden="true">
-              <span>基礎</span>
-              <strong>一向聴</strong>
-              <small>DRILL</small>
-            </div>
-          </div>
-
           <section className="quiz-launch-panel" aria-labelledby="quiz-launch-title">
             <div className="quiz-launch-copy">
               <div className="quiz-launch-meta">
-                <span>NEW · 4択30問</span>
-                <span>7章構成</span>
+                <span>4択 {quizBank.length}問</span>
+                <span>解き直し {quizReviewIds.length}問</span>
+                {savedQuizSession && (
+                  <span>回答済み {savedQuizSession.answers.length} / {savedQuizSession.questionIds.length}</span>
+                )}
               </div>
-              <p className="section-kicker">MULTIPLE CHOICE QUIZ</p>
-              <h2 id="quiz-launch-title">{QUIZ_LESSON.label}</h2>
+              <div className="lesson-title-row">
+                <h2 id="quiz-launch-title">{QUIZ_LESSON.label}</h2>
+                <a
+                  className="youtube-icon-button"
+                  href={QUIZ_LESSON.videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${QUIZ_LESSON.label}の授業動画をYouTubeで見る`}
+                  title="授業動画をYouTubeで見る"
+                >
+                  <span className="youtube-play-mark" aria-hidden="true" />
+                </a>
+              </div>
               <h3>{QUIZ_LESSON.title}</h3>
-              <p>孤立牌の基本序列から特殊形まで、選んですぐ解説を確認できます。</p>
             </div>
             <div className="quiz-launch-actions">
+              {savedQuizSession && (
+                <button className="quiz-resume-button" onClick={resumeQuiz} data-testid="resume-basic-order-quiz">
+                  <span aria-hidden="true">▶</span>
+                  <span>
+                    <strong>途中から再開</strong>
+                    <small>Q{String(savedQuizSession.questionIds[savedQuizSession.currentIndex]).padStart(2, "0")}・回答済み {savedQuizSession.answers.length}問</small>
+                  </span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              )}
               <button className="quiz-start-button" onClick={() => startQuiz()} data-testid="start-basic-order-quiz">
-                <span className="quiz-start-button__count">30</span>
+                <span className="quiz-start-button__count">{quizBank.length}</span>
                 <span>
-                  <strong>クイズを始める</strong>
-                  <small>全30問・4択形式</small>
+                  <strong>{savedQuizSession ? "最初から始める" : "クイズを始める"}</strong>
+                  <small>全{quizBank.length}問</small>
                 </span>
                 <span aria-hidden="true">→</span>
               </button>
-              <a className="quiz-video-link" href={QUIZ_LESSON.videoUrl} target="_blank" rel="noreferrer">
-                <span aria-hidden="true">▶</span> 授業動画を見る
-              </a>
+              <div className="quiz-secondary-actions">
+                <button
+                  className="quiz-review-button"
+                  onClick={() => startQuiz(quizBank.filter((question) => quizReviewSet.has(question.id)))}
+                  disabled={quizReviewIds.length === 0}
+                  data-testid="start-quiz-review"
+                >
+                  ↺ 解き直し {quizReviewIds.length}問
+                </button>
+                <button className="quiz-list-button" onClick={() => setScreen("quiz-list")} data-testid="open-quiz-list">
+                  ☰ クイズ問題一覧
+                </button>
+              </div>
             </div>
           </section>
 
@@ -766,7 +900,6 @@ export default function Home() {
               <section className="mode-panel" aria-label={lesson.label} key={lessonId}>
                 <div className="section-heading">
                   <div>
-                    <p className="section-kicker">SELECT MODE</p>
                     <div className="lesson-title-row">
                       <h2>{lesson.label}</h2>
                       <a
@@ -792,9 +925,9 @@ export default function Home() {
                     onClick={() => startSession(lessonId, "all")}
                     data-testid={`start-all-${lessonId}`}
                   >
-                    <span className="mode-card__number">50</span>
+                    <span className="mode-card__number">{cardsByLesson[lessonId].length}</span>
                     <span>
-                      <strong>全50問</strong>
+                      <strong>全{cardsByLesson[lessonId].length}問</strong>
                       <small>講義内容を一周する</small>
                     </span>
                     <span className="mode-card__arrow" aria-hidden="true">→</span>
@@ -852,10 +985,10 @@ export default function Home() {
       {screen === "quiz" && currentQuizQuestion && (
         <section className="screen screen--quiz" aria-live="polite" aria-labelledby="quiz-question-title">
           <div className="session-top">
-            <button className="icon-button" onClick={leaveQuiz} aria-label="クイズを終了してホームへ戻る">×</button>
+            <button className="quiz-menu-button" onClick={leaveQuiz} aria-label="進捗を保存してメニューへ戻る">← メニュー</button>
             <div className="session-title">
               <span>{QUIZ_LESSON.label} · 4択クイズ</span>
-              <strong>{quizIndex + 1}<small> / {quizQuestions.length}</small></strong>
+              <strong>{quizAnswers.length}<small> / {quizQuestions.length} 回答済み</small></strong>
             </div>
             <div className="timer" aria-label={`経過時間 ${formatDuration(elapsedSeconds)}`}>
               <span aria-hidden="true">◷</span> {formatDuration(elapsedSeconds)}
@@ -909,14 +1042,37 @@ export default function Home() {
                   <span>正解 {choiceLabel(currentQuizQuestion.correctIndex)}</span>
                 </div>
                 <p><MahjongText text={currentQuizQuestion.explanation} /></p>
-                <button className="quiz-next-button" onClick={advanceQuiz} data-testid="quiz-next">
-                  {quizIndex >= quizQuestions.length - 1 ? "結果を見る" : "次の問題へ"}
-                  <span aria-hidden="true">→</span>
-                  <kbd>Enter</kbd>
+                <button
+                  className={`quiz-review-toggle${quizReviewSet.has(currentQuizQuestion.id) ? " quiz-review-toggle--active" : ""}`}
+                  onClick={() => toggleQuizReview(currentQuizQuestion.id)}
+                  data-testid="toggle-quiz-review"
+                >
+                  <span aria-hidden="true">↺</span>
+                  {quizReviewSet.has(currentQuizQuestion.id) ? "解き直しから外す" : "解き直しに追加"}
                 </button>
               </div>
             )}
           </article>
+
+          <nav className="quiz-navigation" aria-label="クイズ問題の移動">
+            <button
+              className="quiz-nav-button"
+              onClick={() => goToQuizIndex(quizIndex - 1)}
+              disabled={quizIndex === 0}
+              data-testid="quiz-previous"
+            >
+              <span aria-hidden="true">←</span> 前の問題
+            </button>
+            <span className="quiz-position">Q{String(currentQuizQuestion.id).padStart(2, "0")}</span>
+            <button className="quiz-nav-button quiz-nav-button--next" onClick={advanceQuiz} data-testid="quiz-next">
+              {quizIndex < quizQuestions.length - 1
+                ? "次の問題"
+                : quizAnswers.length >= quizQuestions.length
+                  ? "結果を見る"
+                  : "未回答へ"}
+              <span aria-hidden="true">→</span>
+            </button>
+          </nav>
         </section>
       )}
 
@@ -1350,6 +1506,83 @@ export default function Home() {
               </button>
             </div>
           </div>
+        </section>
+      )}
+
+      {screen === "quiz-list" && (
+        <section className="screen screen--list screen--quiz-list" aria-labelledby="quiz-list-title">
+          <div className="list-top">
+            <button className="icon-button" onClick={() => setScreen("home")} aria-label="ホームへ戻る">
+              ←
+            </button>
+            <div>
+              <p className="section-kicker">ALL QUIZ QUESTIONS</p>
+              <h2 id="quiz-list-title">クイズ問題一覧</h2>
+            </div>
+            <span className="review-count">
+              解き直し <strong>{quizReviewIds.length}</strong>問
+            </span>
+          </div>
+
+          <div className="quiz-list-toolbar">
+            <button className="primary-button" onClick={() => startQuiz()}>全{quizBank.length}問を解く</button>
+            <button
+              className="review-button"
+              onClick={() => startQuiz(quizBank.filter((question) => quizReviewSet.has(question.id)))}
+              disabled={quizReviewIds.length === 0}
+            >
+              解き直し{quizReviewIds.length}問を解く
+            </button>
+          </div>
+
+          <p className="list-lead">
+            問題を開くと正解と解説を確認できます。気になる問題は一覧からも解き直しに追加できます。
+          </p>
+
+          <div className="question-list quiz-question-list">
+            {quizBank.map((question) => (
+              <details
+                key={question.id}
+                className={quizReviewSet.has(question.id) ? "question-row question-row--review" : "question-row"}
+              >
+                <summary>
+                  <span className="question-number">Q{String(question.id).padStart(2, "0")}</span>
+                  <span><MahjongText text={question.question} /></span>
+                  {quizReviewSet.has(question.id) && <span className="review-tag">解き直し</span>}
+                  <span className="chevron" aria-hidden="true">＋</span>
+                </summary>
+                <div className="quiz-list-answer">
+                  <p className="quiz-list-chapter">{question.chapter}</p>
+                  <ol className="quiz-list-options">
+                    {question.options.map((option, optionIndex) => (
+                      <li
+                        key={`${question.id}-list-${optionIndex}`}
+                        className={optionIndex === question.correctIndex ? "is-correct" : ""}
+                      >
+                        <strong>{choiceLabel(optionIndex)}</strong>
+                        <span><MahjongText text={option} /></span>
+                      </li>
+                    ))}
+                  </ol>
+                  <div className="quiz-list-explanation">
+                    <strong>正解 {choiceLabel(question.correctIndex)}</strong>
+                    <p><MahjongText text={question.explanation} /></p>
+                  </div>
+                  <button
+                    className={`quiz-review-toggle${quizReviewSet.has(question.id) ? " quiz-review-toggle--active" : ""}`}
+                    onClick={() => toggleQuizReview(question.id)}
+                  >
+                    <span aria-hidden="true">↺</span>
+                    {quizReviewSet.has(question.id) ? "解き直しから外す" : "解き直しに追加"}
+                  </button>
+                </div>
+              </details>
+            ))}
+          </div>
+
+          <button className="sticky-home-button" onClick={() => setScreen("home")}>
+            ホームへ戻る
+          </button>
         </section>
       )}
 
