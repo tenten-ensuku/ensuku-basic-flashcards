@@ -3,7 +3,7 @@ import "./globals.css";
 
 const title = "一向聴 基礎講義フラッシュカード";
 const description =
-  "一向聴の基礎講義2授業・全100問を、全問・解き直しカードで復習できる無料フラッシュカード。";
+  "麻雀の基礎講義を、4択30問の基本序列クイズと2授業・全100問のフラッシュカードで復習できる無料ドリル。";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL

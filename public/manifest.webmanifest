@@ -1,7 +1,7 @@
 {
   "name": "一向聴 基礎講義フラッシュカード",
   "short_name": "一向聴カード",
-  "description": "一向聴の基礎講義2授業・全100問を復習できるフラッシュカード",
+  "description": "4択30問の基本序列クイズと2授業・全100問のフラッシュカードで復習できるドリル",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#48d6b0",

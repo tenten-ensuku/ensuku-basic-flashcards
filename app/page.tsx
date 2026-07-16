@@ -12,14 +12,33 @@ import {
   readProgress,
   updateReviewIds,
 } from "./lib/flashcards.mjs";
+import {
+  BASIC_ORDER_QUIZ,
+  QUIZ_LESSON,
+  choiceLabel,
+  scoreQuiz,
+} from "./lib/quiz.mjs";
 
-type Screen = "home" | "session" | "result" | "list" | "admin-login" | "admin";
+type Screen = "home" | "session" | "result" | "list" | "quiz" | "quiz-result" | "admin-login" | "admin";
 type SessionMode = "all" | "review";
 type Rating = "known" | "again";
 type LessonId = keyof typeof LESSONS;
 type Flashcard = { id: number; question: string; answer: string };
 type CardsByLesson = Record<LessonId, Flashcard[]>;
 type CardOverride = Flashcard & { lessonId: LessonId };
+type QuizQuestion = {
+  id: number;
+  chapter: string;
+  question: string;
+  options: readonly string[];
+  correctIndex: number;
+  explanation: string;
+};
+type QuizAnswer = {
+  questionId: number;
+  selectedIndex: number;
+  correct: boolean;
+};
 type ReviewCardIdsByLesson = Record<LessonId, number[]>;
 type LastSession = {
   lessonId: LessonId;
@@ -189,6 +208,10 @@ export default function Home() {
   const [againCount, setAgainCount] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [quizIndex, setQuizIndex] = useState(0);
+  const [quizSelectedIndex, setQuizSelectedIndex] = useState<number | null>(null);
+  const [quizAnswers, setQuizAnswers] = useState<QuizAnswer[]>([]);
   const startedAtRef = useRef(0);
   const resultRef = useRef<LastSession | null>(null);
 
@@ -240,7 +263,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (screen !== "session") return;
+    if (screen !== "session" && screen !== "quiz") return;
     const tick = () => {
       setElapsedSeconds(Math.floor((Date.now() - startedAtRef.current) / 1000));
     };
@@ -252,9 +275,21 @@ export default function Home() {
   const reviewCardIds = reviewCardIdsByLesson[selectedLesson];
   const reviewSet = useMemo(() => new Set(reviewCardIds), [reviewCardIds]);
   const currentCard = sessionCards[cardIndex];
+  const currentQuizQuestion = quizQuestions[quizIndex];
   const progress = sessionCards.length
     ? ((cardIndex + (revealed ? 0.5 : 0)) / sessionCards.length) * 100
     : 0;
+  const quizProgress = quizQuestions.length
+    ? ((quizIndex + (quizSelectedIndex === null ? 0 : 1)) / quizQuestions.length) * 100
+    : 0;
+  const quizResult = useMemo(
+    () => scoreQuiz(quizAnswers, quizQuestions.length),
+    [quizAnswers, quizQuestions.length],
+  );
+  const missedQuizQuestions = useMemo(() => {
+    const missedIds = new Set(quizAnswers.filter((answer) => !answer.correct).map((answer) => answer.questionId));
+    return quizQuestions.filter((question) => missedIds.has(question.id));
+  }, [quizAnswers, quizQuestions]);
 
   const startSession = useCallback(
     (lessonId: LessonId, mode: SessionMode) => {
@@ -280,6 +315,42 @@ export default function Home() {
     },
     [cardsByLesson, reviewCardIdsByLesson],
   );
+
+  const startQuiz = useCallback((questions: readonly QuizQuestion[] = BASIC_ORDER_QUIZ) => {
+    if (!questions.length) return;
+    setQuizQuestions([...questions]);
+    setQuizIndex(0);
+    setQuizSelectedIndex(null);
+    setQuizAnswers([]);
+    setElapsedSeconds(0);
+    startedAtRef.current = Date.now();
+    setScreen("quiz");
+  }, []);
+
+  const answerQuiz = useCallback((selectedIndex: number) => {
+    if (!currentQuizQuestion || quizSelectedIndex !== null) return;
+    if (selectedIndex < 0 || selectedIndex >= currentQuizQuestion.options.length) return;
+    setQuizSelectedIndex(selectedIndex);
+    setQuizAnswers((answers) => [
+      ...answers,
+      {
+        questionId: currentQuizQuestion.id,
+        selectedIndex,
+        correct: selectedIndex === currentQuizQuestion.correctIndex,
+      },
+    ]);
+  }, [currentQuizQuestion, quizSelectedIndex]);
+
+  const advanceQuiz = useCallback(() => {
+    if (quizSelectedIndex === null || !currentQuizQuestion) return;
+    if (quizIndex >= quizQuestions.length - 1) {
+      setElapsedSeconds(Math.floor((Date.now() - startedAtRef.current) / 1000));
+      setScreen("quiz-result");
+      return;
+    }
+    setQuizIndex((index) => index + 1);
+    setQuizSelectedIndex(null);
+  }, [currentQuizQuestion, quizIndex, quizQuestions.length, quizSelectedIndex]);
 
   const openAdminLogin = () => {
     setAdminPassword("");
@@ -481,10 +552,39 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [rateCard, revealed, screen]);
 
+  useEffect(() => {
+    if (screen !== "quiz") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (quizSelectedIndex !== null && event.key === "Enter") {
+        event.preventDefault();
+        advanceQuiz();
+        return;
+      }
+      if (quizSelectedIndex !== null) return;
+      const key = event.key.toUpperCase();
+      const numberIndex = /^[1-4]$/.test(key) ? Number(key) - 1 : -1;
+      const letterIndex = /^[A-D]$/.test(key) ? key.charCodeAt(0) - 65 : -1;
+      const selectedIndex = numberIndex >= 0 ? numberIndex : letterIndex;
+      if (selectedIndex >= 0) {
+        event.preventDefault();
+        answerQuiz(selectedIndex);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [advanceQuiz, answerQuiz, quizSelectedIndex, screen]);
+
   const leaveSession = () => {
     setScreen("home");
     setSessionCards([]);
     setIsAdvancing(false);
+  };
+
+  const leaveQuiz = () => {
+    setScreen("home");
+    setQuizQuestions([]);
+    setQuizSelectedIndex(null);
+    setQuizAnswers([]);
   };
 
   return (
@@ -497,11 +597,11 @@ export default function Home() {
 
           <div className="hero-panel">
             <div className="hero-copy">
-              <p className="hero-kicker">2 LESSONS / 100 CARDS</p>
+              <p className="hero-kicker">1 QUIZ / 2 FLASHCARD LESSONS</p>
               <h2 id="app-title">授業の復習</h2>
               <p>
-                問題を読んで答えを思い浮かべたら、カードをめくって自己判定。
-                解き直しカードだけを何度でも復習できます。
+                4択クイズで理解を確認したり、カードをめくって思い出す練習をしたり。
+                授業ごとに、自分のペースで何度でも復習できます。
               </p>
             </div>
             <div className="hero-seal" aria-hidden="true">
@@ -510,6 +610,32 @@ export default function Home() {
               <small>DRILL</small>
             </div>
           </div>
+
+          <section className="quiz-launch-panel" aria-labelledby="quiz-launch-title">
+            <div className="quiz-launch-copy">
+              <div className="quiz-launch-meta">
+                <span>NEW · 4択30問</span>
+                <span>7章構成</span>
+              </div>
+              <p className="section-kicker">MULTIPLE CHOICE QUIZ</p>
+              <h2 id="quiz-launch-title">{QUIZ_LESSON.label}</h2>
+              <h3>{QUIZ_LESSON.title}</h3>
+              <p>孤立牌の基本序列から特殊形まで、選んですぐ解説を確認できます。</p>
+            </div>
+            <div className="quiz-launch-actions">
+              <button className="quiz-start-button" onClick={() => startQuiz()} data-testid="start-basic-order-quiz">
+                <span className="quiz-start-button__count">30</span>
+                <span>
+                  <strong>クイズを始める</strong>
+                  <small>全30問・4択形式</small>
+                </span>
+                <span aria-hidden="true">→</span>
+              </button>
+              <a className="quiz-video-link" href={QUIZ_LESSON.videoUrl} target="_blank" rel="noreferrer">
+                <span aria-hidden="true">▶</span> 授業動画を見る
+              </a>
+            </div>
+          </section>
 
           {(Object.keys(LESSONS) as LessonId[]).map((lessonId) => {
             const lesson = LESSONS[lessonId];
@@ -585,6 +711,142 @@ export default function Home() {
             >
               <span aria-hidden="true">⚙</span> 管理画面
             </button>
+          </div>
+        </section>
+      )}
+
+      {screen === "quiz" && currentQuizQuestion && (
+        <section className="screen screen--quiz" aria-live="polite" aria-labelledby="quiz-question-title">
+          <div className="session-top">
+            <button className="icon-button" onClick={leaveQuiz} aria-label="クイズを終了してホームへ戻る">×</button>
+            <div className="session-title">
+              <span>{QUIZ_LESSON.label} · 4択クイズ</span>
+              <strong>{quizIndex + 1}<small> / {quizQuestions.length}</small></strong>
+            </div>
+            <div className="timer" aria-label={`経過時間 ${formatDuration(elapsedSeconds)}`}>
+              <span aria-hidden="true">◷</span> {formatDuration(elapsedSeconds)}
+            </div>
+          </div>
+
+          <div className="progress-track" aria-label="進捗">
+            <span style={{ width: `${quizProgress}%` }} />
+          </div>
+
+          <article className={`quiz-card ${quizSelectedIndex === null ? "" : "quiz-card--answered"}`}>
+            <div className="quiz-card__meta">
+              <span>{currentQuizQuestion.chapter}</span>
+              <strong>Q{String(currentQuizQuestion.id).padStart(2, "0")}</strong>
+            </div>
+            <h2 id="quiz-question-title"><MahjongText text={currentQuizQuestion.question} /></h2>
+
+            <div className="quiz-options" role="group" aria-label="選択肢">
+              {currentQuizQuestion.options.map((option, optionIndex) => {
+                const isCorrect = optionIndex === currentQuizQuestion.correctIndex;
+                const isSelected = optionIndex === quizSelectedIndex;
+                const answerClass = quizSelectedIndex === null
+                  ? ""
+                  : isCorrect
+                    ? " quiz-option--correct"
+                    : isSelected
+                      ? " quiz-option--wrong"
+                      : " quiz-option--dimmed";
+                return (
+                  <button
+                    type="button"
+                    className={`quiz-option${answerClass}`}
+                    key={`${currentQuizQuestion.id}-${optionIndex}`}
+                    onClick={() => answerQuiz(optionIndex)}
+                    disabled={quizSelectedIndex !== null}
+                    aria-pressed={isSelected}
+                    data-testid={`quiz-option-${optionIndex}`}
+                  >
+                    <span className="quiz-option__label">{choiceLabel(optionIndex)}</span>
+                    <span><MahjongText text={option} /></span>
+                    <kbd>{optionIndex + 1}</kbd>
+                  </button>
+                );
+              })}
+            </div>
+
+            {quizSelectedIndex !== null && (
+              <div className={`quiz-feedback ${quizSelectedIndex === currentQuizQuestion.correctIndex ? "quiz-feedback--correct" : "quiz-feedback--wrong"}`}>
+                <div className="quiz-feedback__title">
+                  <strong>{quizSelectedIndex === currentQuizQuestion.correctIndex ? "正解！" : "もう一度確認しよう"}</strong>
+                  <span>正解 {choiceLabel(currentQuizQuestion.correctIndex)}</span>
+                </div>
+                <p><MahjongText text={currentQuizQuestion.explanation} /></p>
+                <button className="quiz-next-button" onClick={advanceQuiz} data-testid="quiz-next">
+                  {quizIndex >= quizQuestions.length - 1 ? "結果を見る" : "次の問題へ"}
+                  <span aria-hidden="true">→</span>
+                  <kbd>Enter</kbd>
+                </button>
+              </div>
+            )}
+          </article>
+        </section>
+      )}
+
+      {screen === "quiz-result" && (
+        <section className="screen screen--result" aria-labelledby="quiz-result-title">
+          <HomeHeader compact />
+          <div className="result-panel quiz-result-panel">
+            <p className="section-kicker">QUIZ COMPLETE</p>
+            <h2 id="quiz-result-title">4択クイズ完了！</h2>
+            <p className="result-subtitle">{QUIZ_LESSON.label} · {quizQuestions.length}問</p>
+
+            <div className="result-score">
+              <div
+                className="score-gauge"
+                style={{ "--score": `${quizResult.rate * 3.6}deg` } as React.CSSProperties}
+                aria-label={`正答率 ${quizResult.rate}%`}
+              >
+                <div>
+                  <strong>{quizResult.rate}</strong>
+                  <span>%</span>
+                  <small>正答率</small>
+                </div>
+              </div>
+              <div className={`rank-badge rank-badge--${getRank(quizResult.rate).toLowerCase()}`}>
+                <span>理解度ランク</span>
+                <strong>{getRank(quizResult.rate)}</strong>
+                <small>{quizResult.correct} / {quizQuestions.length}問正解</small>
+              </div>
+            </div>
+
+            <dl className="result-stats">
+              <div><dt>正解</dt><dd>{quizResult.correct}<small>問</small></dd></div>
+              <div><dt>間違い</dt><dd>{quizResult.wrong}<small>問</small></dd></div>
+              <div><dt>経過時間</dt><dd>{formatDuration(elapsedSeconds)}</dd></div>
+            </dl>
+
+            {missedQuizQuestions.length > 0 && (
+              <div className="quiz-mistake-list">
+                <h3>間違えた問題を確認</h3>
+                {missedQuizQuestions.map((question) => (
+                  <details key={question.id}>
+                    <summary>
+                      <span>Q{String(question.id).padStart(2, "0")}</span>
+                      <strong><MahjongText text={question.question} /></strong>
+                      <i aria-hidden="true">＋</i>
+                    </summary>
+                    <div>
+                      <p><b>正解 {choiceLabel(question.correctIndex)}</b>：<MahjongText text={question.options[question.correctIndex]} /></p>
+                      <p><MahjongText text={question.explanation} /></p>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+
+            <div className="result-actions">
+              {missedQuizQuestions.length > 0 && (
+                <button className="review-button" onClick={() => startQuiz(missedQuizQuestions)}>
+                  間違えた{missedQuizQuestions.length}問だけ再挑戦
+                </button>
+              )}
+              <button className="primary-button" onClick={() => startQuiz()}>全30問をもう一度</button>
+              <button className="text-button" onClick={leaveQuiz}>ホームへ戻る</button>
+            </div>
           </div>
         </section>
       )}
