@@ -15,8 +15,8 @@ import {
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships two 50-card lessons as ver16", () => {
-  assert.equal(APP_VERSION, 16);
+test("ships two 50-card lessons as ver17", () => {
+  assert.equal(APP_VERSION, 17);
   assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v4");
   assert.equal(LEGACY_STORAGE_KEY, "ensuku-basic-flashcards-v3");
   assert.equal(FLASHCARDS.length, 50);

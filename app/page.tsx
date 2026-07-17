@@ -21,6 +21,7 @@ import {
   readQuizProgress,
   scoreQuiz,
 } from "./lib/quiz.mjs";
+import { tokenizeRichText } from "./lib/rich-text.mjs";
 
 type Screen = "home" | "session" | "result" | "list" | "quiz" | "quiz-list" | "quiz-result" | "admin-login" | "admin";
 type SessionMode = "all" | "review";
@@ -146,7 +147,7 @@ function honorTilePath() {
   return `${BASE_PATH}/tiles/ji5-66-90-l.png`;
 }
 
-function MahjongText({ text }: { text: string }) {
+function MahjongTiles({ text }: { text: string }) {
   const pattern = /([1-9１-９]+)[ \u3000]*([mpsｍｐｓ])|([発發]+)/giu;
   const parts: React.ReactNode[] = [];
   let cursor = 0;
@@ -194,6 +195,45 @@ function MahjongText({ text }: { text: string }) {
 
   if (cursor < text.length) parts.push(text.slice(cursor));
   return <>{parts}</>;
+}
+
+function MahjongText({ text, links = true }: { text: string; links?: boolean }) {
+  return (
+    <>
+      {tokenizeRichText(text).map((token, index) => {
+        if (token.type !== "link") return <MahjongTiles text={token.value} key={`text-${index}`} />;
+        const content = (
+          <>
+            <span className="embedded-link__icon" aria-hidden="true">
+              {token.kind === "youtube" ? "▶" : "↗"}
+            </span>
+            <span>{token.label}</span>
+          </>
+        );
+        return links ? (
+          <a
+            className={`embedded-link embedded-link--${token.kind}`}
+            href={token.url}
+            target="_blank"
+            rel="noreferrer"
+            title={token.url}
+            aria-label={`${token.label}（新しいタブ）`}
+            key={`${token.url}-${index}`}
+          >
+            {content}
+          </a>
+        ) : (
+          <span
+            className={`embedded-link embedded-link--${token.kind} embedded-link--static`}
+            title={token.url}
+            key={`${token.url}-${index}`}
+          >
+            {content}
+          </span>
+        );
+      })}
+    </>
+  );
 }
 
 function safeSave(reviewCardIdsByLesson: ReviewCardIdsByLesson, lastSession: LastSession | null) {
@@ -1028,7 +1068,7 @@ export default function Home() {
                     data-testid={`quiz-option-${optionIndex}`}
                   >
                     <span className="quiz-option__label">{choiceLabel(optionIndex)}</span>
-                    <span><MahjongText text={option} /></span>
+                    <span><MahjongText text={option} links={false} /></span>
                     <kbd>{optionIndex + 1}</kbd>
                   </button>
                 );
