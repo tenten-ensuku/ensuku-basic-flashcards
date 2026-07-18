@@ -26,6 +26,7 @@ function mockDb() {
                 options_json: JSON.stringify(row.options),
                 correct_index: row.correctIndex,
                 explanation: row.explanation,
+                deleted: row.deleted ? 1 : 0,
                 updated_at: "2026-07-17 00:00:00",
               })),
             };
@@ -36,26 +37,40 @@ function mockDb() {
               card_id: row.id,
               question: row.question,
               answer: row.answer,
+              deleted: row.deleted ? 1 : 0,
               updated_at: "2026-07-16 00:00:00",
             })),
           };
         },
         async run() {
           if (/INSERT INTO flashcard_overrides/.test(query)) {
-            const [lessonId, id, question, answer] = values;
-            rows.set(`${lessonId}-${id}`, { lessonId, id, question, answer });
+            if (values.length === 2) {
+              const [lessonId, id] = values;
+              rows.set(`${lessonId}-${id}`, { lessonId, id, question: "", answer: "", deleted: true });
+            } else {
+              const [lessonId, id, question, answer] = values;
+              rows.set(`${lessonId}-${id}`, { lessonId, id, question, answer, deleted: false });
+            }
           } else if (/DELETE FROM flashcard_overrides/.test(query)) {
             rows.delete(`${values[0]}-${values[1]}`);
           } else if (/INSERT INTO quiz_overrides/.test(query)) {
-            const [quizId, id, question, optionsJson, correctIndex, explanation] = values;
-            quizRows.set(`${quizId}-${id}`, {
-              quizId,
-              id,
-              question,
-              options: JSON.parse(optionsJson),
-              correctIndex,
-              explanation,
-            });
+            if (values.length === 2) {
+              const [quizId, id] = values;
+              quizRows.set(`${quizId}-${id}`, {
+                quizId, id, question: "", options: ["", "", "", ""], correctIndex: 0, explanation: "", deleted: true,
+              });
+            } else {
+              const [quizId, id, question, optionsJson, correctIndex, explanation] = values;
+              quizRows.set(`${quizId}-${id}`, {
+                quizId,
+                id,
+                question,
+                options: JSON.parse(optionsJson),
+                correctIndex,
+                explanation,
+                deleted: false,
+              });
+            }
           } else if (/DELETE FROM quiz_overrides/.test(query)) {
             quizRows.delete(`${values[0]}-${values[1]}`);
           }
@@ -143,6 +158,43 @@ test("admin can edit the 7/18 lesson within its 30-card limit", async () => {
     body: JSON.stringify({ question: "範囲外", answer: "範囲外" }),
   }), env);
   assert.equal(outOfRange.status, 404);
+});
+
+test("admin can delete and restore flashcard and quiz problems", async () => {
+  const DB = mockDb();
+  const env = { ADMIN_PASSWORD: "test-only-secret", DB };
+  const headers = { "X-Admin-Password": "test-only-secret" };
+
+  const deletedCard = await handleAdminApi(request("/api/admin/cards/tenten0718/2/delete", {
+    method: "DELETE",
+    headers,
+  }), env);
+  assert.equal(deletedCard.status, 200);
+  assert.equal(DB.rows.get("tenten0718-2").deleted, true);
+
+  const deletedQuiz = await handleAdminApi(request("/api/admin/quizzes/basic-order-2026-07-16/4/delete", {
+    method: "DELETE",
+    headers,
+  }), env);
+  assert.equal(deletedQuiz.status, 200);
+  assert.equal(DB.quizRows.get("basic-order-2026-07-16-4").deleted, true);
+
+  const listed = await handleAdminApi(request("/api/cards"), env);
+  const payload = await listed.json();
+  assert.deepEqual(payload.overrides[0], {
+    lessonId: "tenten0718",
+    id: 2,
+    question: "",
+    answer: "",
+    deleted: true,
+    updatedAt: "2026-07-16 00:00:00",
+  });
+  assert.equal(payload.quizOverrides[0].deleted, true);
+
+  await handleAdminApi(request("/api/admin/cards/tenten0718/2", { method: "DELETE", headers }), env);
+  await handleAdminApi(request("/api/admin/quizzes/basic-order-2026-07-16/4", { method: "DELETE", headers }), env);
+  assert.equal(DB.rows.size, 0);
+  assert.equal(DB.quizRows.size, 0);
 });
 
 test("admin can save, publish, and restore a four-choice quiz override", async () => {

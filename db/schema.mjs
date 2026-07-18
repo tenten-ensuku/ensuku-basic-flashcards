@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS flashcard_overrides_v2 (
   card_id INTEGER NOT NULL CHECK (card_id BETWEEN 1 AND 50),
   question TEXT NOT NULL,
   answer TEXT NOT NULL,
+  deleted INTEGER NOT NULL DEFAULT 0 CHECK (deleted IN (0, 1)),
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (lesson_id, card_id)
 )
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS quiz_overrides (
   options_json TEXT NOT NULL,
   correct_index INTEGER NOT NULL CHECK (correct_index BETWEEN 0 AND 3),
   explanation TEXT NOT NULL,
+  deleted INTEGER NOT NULL DEFAULT 0 CHECK (deleted IN (0, 1)),
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (quiz_id, question_id)
 )

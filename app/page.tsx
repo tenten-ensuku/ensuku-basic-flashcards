@@ -9,6 +9,7 @@ import {
   createSessionCards,
   formatDuration,
   getRank,
+  mergeFlashcardOverrides,
   readProgress,
   updateReviewIds,
 } from "./lib/flashcards.mjs";
@@ -29,7 +30,7 @@ type Rating = "known" | "again";
 type LessonId = keyof typeof LESSONS;
 type Flashcard = { id: number; question: string; answer: string };
 type CardsByLesson = Record<LessonId, Flashcard[]>;
-type CardOverride = Flashcard & { lessonId: LessonId };
+type CardOverride = Flashcard & { lessonId: LessonId; deleted?: boolean };
 type QuizQuestion = {
   id: number;
   chapter: string;
@@ -38,7 +39,7 @@ type QuizQuestion = {
   correctIndex: number;
   explanation: string;
 };
-type QuizOverride = Omit<QuizQuestion, "chapter"> & { quizId: string };
+type QuizOverride = Omit<QuizQuestion, "chapter"> & { quizId: string; deleted?: boolean };
 type AdminSection = LessonId | "quiz";
 type QuizAnswer = {
   questionId: number;
@@ -53,6 +54,7 @@ type SavedQuizSession = {
   updatedAt: string;
 };
 type ReviewCardIdsByLesson = Record<LessonId, number[]>;
+type DeletedCardIdsByLesson = Record<LessonId, number[]>;
 type LastSession = {
   lessonId: LessonId;
   mode: SessionMode;
@@ -65,13 +67,13 @@ type LastSession = {
   completedAt: string;
 };
 
-function modeLabel(lessonId: LessonId, mode: SessionMode) {
-  return mode === "all" ? `全${LESSONS[lessonId].cards.length}問` : "解き直しカード";
+function modeLabel(lessonId: LessonId, mode: SessionMode, count = LESSONS[lessonId].cards.length) {
+  return mode === "all" ? `全${count}問` : "解き直しカード";
 }
 
 const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSection; label: string }> = [
-  { id: "quiz", label: "7/16　4択クイズ" },
   { id: "tenten0718", label: "7/18　てんてん先生" },
+  { id: "quiz", label: "7/16　4択クイズ" },
   { id: "tenten", label: "7/14　てんてん先生" },
   { id: "nejimaki", label: "7/2　ねじまき鳥先生" },
 ];
@@ -96,19 +98,11 @@ function cloneBaseCards(): CardsByLesson {
 }
 
 function withOverrides(overrides: CardOverride[]): CardsByLesson {
-  const cards = cloneBaseCards();
-  for (const override of overrides) {
-    if (!(override.lessonId in cards)) continue;
-    const index = cards[override.lessonId].findIndex((card) => card.id === override.id);
-    if (index >= 0 && override.question && override.answer) {
-      cards[override.lessonId][index] = {
-        id: override.id,
-        question: override.question,
-        answer: override.answer,
-      };
-    }
-  }
-  return cards;
+  return {
+    tenten0718: mergeFlashcardOverrides(LESSONS.tenten0718.cards, overrides, "tenten0718"),
+    tenten: mergeFlashcardOverrides(LESSONS.tenten.cards, overrides, "tenten"),
+    nejimaki: mergeFlashcardOverrides(LESSONS.nejimaki.cards, overrides, "nejimaki"),
+  } as CardsByLesson;
 }
 
 function cloneBaseQuiz(): QuizQuestion[] {
@@ -307,18 +301,25 @@ export default function Home() {
   const [adminDrafts, setAdminDrafts] = useState<CardsByLesson>(cloneBaseCards);
   const [quizBank, setQuizBank] = useState<QuizQuestion[]>(cloneBaseQuiz);
   const [adminQuizDrafts, setAdminQuizDrafts] = useState<QuizQuestion[]>(cloneBaseQuiz);
-  const [adminSection, setAdminSection] = useState<AdminSection>("quiz");
+  const [adminSection, setAdminSection] = useState<AdminSection>("tenten0718");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminError, setAdminError] = useState("");
   const [adminNotice, setAdminNotice] = useState("");
   const [adminBusyCard, setAdminBusyCard] = useState<number | null>(null);
+  const [adminPendingDelete, setAdminPendingDelete] = useState("");
+  const [deletedCardIdsByLesson, setDeletedCardIdsByLesson] = useState<DeletedCardIdsByLesson>({
+    tenten0718: [],
+    tenten: [],
+    nejimaki: [],
+  });
+  const [deletedQuizIds, setDeletedQuizIds] = useState<number[]>([]);
   const [reviewCardIdsByLesson, setReviewCardIdsByLesson] = useState<ReviewCardIdsByLesson>({
     tenten0718: [],
     tenten: [],
     nejimaki: [],
   });
   const [lastSession, setLastSession] = useState<LastSession | null>(null);
-  const [selectedLesson, setSelectedLesson] = useState<LessonId>("tenten");
+  const [selectedLesson, setSelectedLesson] = useState<LessonId>("tenten0718");
   const [sessionMode, setSessionMode] = useState<SessionMode>("all");
   const [sessionCards, setSessionCards] = useState<Flashcard[]>([]);
   const [cardIndex, setCardIndex] = useState(0);
@@ -345,10 +346,17 @@ export default function Home() {
       .then(({ overrides = [], quizOverrides = [] }) => {
         const nextCards = withOverrides(overrides);
         const nextQuiz = withQuizOverrides(quizOverrides);
+        const nextDeletedCardIds: DeletedCardIdsByLesson = {
+          tenten0718: overrides.filter((item) => item.lessonId === "tenten0718" && item.deleted).map((item) => item.id),
+          tenten: overrides.filter((item) => item.lessonId === "tenten" && item.deleted).map((item) => item.id),
+          nejimaki: overrides.filter((item) => item.lessonId === "nejimaki" && item.deleted).map((item) => item.id),
+        };
         setCardsByLesson(nextCards);
         setAdminDrafts(nextCards);
+        setDeletedCardIdsByLesson(nextDeletedCardIds);
         setQuizBank(nextQuiz);
         setAdminQuizDrafts(nextQuiz);
+        setDeletedQuizIds(quizOverrides.filter((item) => item.deleted).map((item) => item.id));
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -408,13 +416,29 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [screen]);
 
-  const reviewCardIds = reviewCardIdsByLesson[selectedLesson];
+  const activeReviewCardIdsByLesson = useMemo(() => {
+    const next = {} as ReviewCardIdsByLesson;
+    for (const lessonId of Object.keys(LESSONS) as LessonId[]) {
+      const availableIds = new Set(cardsByLesson[lessonId].map((card) => card.id));
+      next[lessonId] = reviewCardIdsByLesson[lessonId].filter((id) => availableIds.has(id));
+    }
+    return next;
+  }, [cardsByLesson, reviewCardIdsByLesson]);
+  const activeQuizReviewIds = useMemo(() => {
+    const availableIds = new Set(quizBank.map((question) => question.id));
+    return quizReviewIds.filter((id) => availableIds.has(id));
+  }, [quizBank, quizReviewIds]);
+  const reviewCardIds = activeReviewCardIdsByLesson[selectedLesson];
   const reviewSet = useMemo(() => new Set(reviewCardIds), [reviewCardIds]);
   const currentCard = sessionCards[cardIndex];
   const currentQuizQuestion = quizQuestions[quizIndex];
+  const flashcardNumber = (lessonId: LessonId, cardId: number) =>
+    cardsByLesson[lessonId].findIndex((card) => card.id === cardId) + 1;
+  const quizQuestionNumber = (questionId: number) =>
+    quizBank.findIndex((question) => question.id === questionId) + 1;
   const currentQuizAnswer = quizAnswers.find((answer) => answer.questionId === currentQuizQuestion?.id);
   const quizSelectedIndex = currentQuizAnswer?.selectedIndex ?? null;
-  const quizReviewSet = useMemo(() => new Set(quizReviewIds), [quizReviewIds]);
+  const quizReviewSet = useMemo(() => new Set(activeQuizReviewIds), [activeQuizReviewIds]);
   const progress = sessionCards.length
     ? ((cardIndex + (revealed ? 0.5 : 0)) / sessionCards.length) * 100
     : 0;
@@ -435,7 +459,7 @@ export default function Home() {
       const cards = createSessionCards(
         lessonId,
         mode,
-        reviewCardIdsByLesson[lessonId],
+        activeReviewCardIdsByLesson[lessonId],
         cardsByLesson[lessonId],
       ) as Flashcard[];
       if (cards.length === 0) return;
@@ -452,7 +476,7 @@ export default function Home() {
       startedAtRef.current = Date.now();
       setScreen("session");
     },
-    [cardsByLesson, reviewCardIdsByLesson],
+    [activeReviewCardIdsByLesson, cardsByLesson],
   );
 
   const startQuiz = useCallback((questions?: readonly QuizQuestion[]) => {
@@ -465,10 +489,10 @@ export default function Home() {
     setQuizAnswers([]);
     setElapsedSeconds(0);
     setSavedQuizSession(nextSession);
-    safeSaveQuiz(quizReviewIds, nextSession);
+    safeSaveQuiz(activeQuizReviewIds, nextSession);
     startedAtRef.current = Date.now();
     setScreen("quiz");
-  }, [quizBank, quizReviewIds]);
+  }, [activeQuizReviewIds, quizBank]);
 
   const resumeQuiz = useCallback(() => {
     if (!savedQuizSession) return;
@@ -499,8 +523,8 @@ export default function Home() {
     const elapsed = Math.max(0, Math.floor((Date.now() - startedAtRef.current) / 1000));
     const session = createSavedQuizSession(quizQuestions, index, answers, elapsed);
     setSavedQuizSession(session);
-    safeSaveQuiz(quizReviewIds, session);
-  }, [quizQuestions, quizReviewIds]);
+    safeSaveQuiz(activeQuizReviewIds, session);
+  }, [activeQuizReviewIds, quizQuestions]);
 
   const answerQuiz = useCallback((selectedIndex: number) => {
     if (!currentQuizQuestion || quizSelectedIndex !== null) return;
@@ -530,19 +554,19 @@ export default function Home() {
     if (quizAnswers.length >= quizQuestions.length) {
       setElapsedSeconds(Math.floor((Date.now() - startedAtRef.current) / 1000));
       setSavedQuizSession(null);
-      safeSaveQuiz(quizReviewIds, null);
+      safeSaveQuiz(activeQuizReviewIds, null);
       setScreen("quiz-result");
       return;
     }
     const answeredIds = new Set(quizAnswers.map((answer) => answer.questionId));
     const firstUnanswered = quizQuestions.findIndex((question) => !answeredIds.has(question.id));
     if (firstUnanswered >= 0) goToQuizIndex(firstUnanswered);
-  }, [currentQuizQuestion, goToQuizIndex, quizAnswers, quizIndex, quizQuestions, quizReviewIds]);
+  }, [activeQuizReviewIds, currentQuizQuestion, goToQuizIndex, quizAnswers, quizIndex, quizQuestions]);
 
   const toggleQuizReview = useCallback((questionId: number) => {
-    const nextReviewIds = quizReviewIds.includes(questionId)
-      ? quizReviewIds.filter((id) => id !== questionId)
-      : [...quizReviewIds, questionId].sort((left, right) => left - right);
+    const nextReviewIds = activeQuizReviewIds.includes(questionId)
+      ? activeQuizReviewIds.filter((id) => id !== questionId)
+      : [...activeQuizReviewIds, questionId].sort((left, right) => left - right);
     setQuizReviewIds(nextReviewIds);
     if (screen === "quiz" && quizQuestions.length) {
       const elapsed = Math.max(0, Math.floor((Date.now() - startedAtRef.current) / 1000));
@@ -552,12 +576,13 @@ export default function Home() {
     } else {
       safeSaveQuiz(nextReviewIds, savedQuizSession);
     }
-  }, [quizAnswers, quizIndex, quizQuestions, quizReviewIds, savedQuizSession, screen]);
+  }, [activeQuizReviewIds, quizAnswers, quizIndex, quizQuestions, savedQuizSession, screen]);
 
   const openAdminLogin = () => {
     setAdminPassword("");
     setAdminError("");
     setAdminNotice("");
+    setAdminPendingDelete("");
     setScreen("admin-login");
   };
 
@@ -646,7 +671,8 @@ export default function Home() {
         ...current,
         [lessonId]: current[lessonId].map((item) => item.id === card.id ? savedCard : item),
       }));
-      setAdminNotice(`Q${String(card.id).padStart(2, "0")}を保存しました。`);
+      const displayNumber = cardsByLesson[lessonId].findIndex((item) => item.id === card.id) + 1;
+      setAdminNotice(`Q${String(displayNumber).padStart(2, "0")}を保存しました。`);
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "保存できませんでした。");
     } finally {
@@ -670,15 +696,66 @@ export default function Home() {
       const restoredCard = { ...baseCard };
       setCardsByLesson((current) => ({
         ...current,
-        [lessonId]: current[lessonId].map((item) => item.id === cardId ? restoredCard : item),
+        [lessonId]: current[lessonId].some((item) => item.id === cardId)
+          ? current[lessonId].map((item) => item.id === cardId ? restoredCard : item)
+          : [...current[lessonId], restoredCard].sort((left, right) => left.id - right.id),
       }));
       setAdminDrafts((current) => ({
         ...current,
-        [lessonId]: current[lessonId].map((item) => item.id === cardId ? restoredCard : item),
+        [lessonId]: current[lessonId].some((item) => item.id === cardId)
+          ? current[lessonId].map((item) => item.id === cardId ? restoredCard : item)
+          : [...current[lessonId], restoredCard].sort((left, right) => left.id - right.id),
       }));
-      setAdminNotice(`Q${String(cardId).padStart(2, "0")}を初期文に戻しました。`);
+      setDeletedCardIdsByLesson((current) => ({
+        ...current,
+        [lessonId]: current[lessonId].filter((id) => id !== cardId),
+      }));
+      setAdminNotice("問題を初期文に戻し、問題番号を詰め直しました。");
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "初期文に戻せませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const deleteAdminCard = async (lessonId: LessonId, card: Flashcard, displayNumber: number) => {
+    const deleteKey = `card-${lessonId}-${card.id}`;
+    if (adminPendingDelete !== deleteKey) {
+      setAdminPendingDelete(deleteKey);
+      setAdminError("");
+      setAdminNotice(`Q${String(displayNumber).padStart(2, "0")}を削除する場合は、もう一度「削除を確定」を押してください。`);
+      return;
+    }
+    setAdminError("");
+    setAdminNotice("");
+    setAdminBusyCard(card.id);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/cards/${lessonId}/${card.id}/delete`), {
+        method: "DELETE",
+        headers: { "X-Admin-Password": adminPassword },
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "問題を削除できませんでした。");
+      setCardsByLesson((current) => ({
+        ...current,
+        [lessonId]: current[lessonId].filter((item) => item.id !== card.id),
+      }));
+      setAdminDrafts((current) => ({
+        ...current,
+        [lessonId]: current[lessonId].filter((item) => item.id !== card.id),
+      }));
+      setDeletedCardIdsByLesson((current) => ({
+        ...current,
+        [lessonId]: [...new Set([...current[lessonId], card.id])].sort((left, right) => left - right),
+      }));
+      const nextReviewIds = activeReviewCardIdsByLesson[lessonId].filter((id) => id !== card.id);
+      const nextReviewState = { ...activeReviewCardIdsByLesson, [lessonId]: nextReviewIds };
+      setReviewCardIdsByLesson(nextReviewState);
+      safeSave(nextReviewState, lastSession);
+      setAdminPendingDelete("");
+      setAdminNotice("問題を削除しました。問題数と問題番号は自動で詰め直されました。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "問題を削除できませんでした。");
     } finally {
       setAdminBusyCard(null);
     }
@@ -714,7 +791,8 @@ export default function Home() {
       };
       setQuizBank((current) => current.map((item) => item.id === question.id ? savedQuestion : item));
       setAdminQuizDrafts((current) => current.map((item) => item.id === question.id ? savedQuestion : item));
-      setAdminNotice(`4択クイズ Q${String(question.id).padStart(2, "0")}を保存しました。`);
+      const displayNumber = quizBank.findIndex((item) => item.id === question.id) + 1;
+      setAdminNotice(`4択クイズ Q${String(displayNumber).padStart(2, "0")}を保存しました。`);
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "保存できませんでした。");
     } finally {
@@ -736,11 +814,50 @@ export default function Home() {
       const baseQuestion = BASIC_ORDER_QUIZ.find((question) => question.id === questionId);
       if (!baseQuestion) throw new Error("初期データが見つかりません。");
       const restoredQuestion: QuizQuestion = { ...baseQuestion, options: [...baseQuestion.options] };
-      setQuizBank((current) => current.map((item) => item.id === questionId ? restoredQuestion : item));
-      setAdminQuizDrafts((current) => current.map((item) => item.id === questionId ? restoredQuestion : item));
-      setAdminNotice(`4択クイズ Q${String(questionId).padStart(2, "0")}を初期文に戻しました。`);
+      setQuizBank((current) => current.some((item) => item.id === questionId)
+        ? current.map((item) => item.id === questionId ? restoredQuestion : item)
+        : [...current, restoredQuestion].sort((left, right) => left.id - right.id));
+      setAdminQuizDrafts((current) => current.some((item) => item.id === questionId)
+        ? current.map((item) => item.id === questionId ? restoredQuestion : item)
+        : [...current, restoredQuestion].sort((left, right) => left.id - right.id));
+      setDeletedQuizIds((current) => current.filter((id) => id !== questionId));
+      setAdminNotice("4択クイズを初期文に戻し、問題番号を詰め直しました。");
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "初期文に戻せませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const deleteAdminQuizQuestion = async (question: QuizQuestion, displayNumber: number) => {
+    const deleteKey = `quiz-${question.id}`;
+    if (adminPendingDelete !== deleteKey) {
+      setAdminPendingDelete(deleteKey);
+      setAdminError("");
+      setAdminNotice(`4択クイズ Q${String(displayNumber).padStart(2, "0")}を削除する場合は、もう一度「削除を確定」を押してください。`);
+      return;
+    }
+    setAdminError("");
+    setAdminNotice("");
+    setAdminBusyCard(question.id);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/quizzes/${QUIZ_LESSON.id}/${question.id}/delete`), {
+        method: "DELETE",
+        headers: { "X-Admin-Password": adminPassword },
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "4択クイズを削除できませんでした。");
+      setQuizBank((current) => current.filter((item) => item.id !== question.id));
+      setAdminQuizDrafts((current) => current.filter((item) => item.id !== question.id));
+      setDeletedQuizIds((current) => [...new Set([...current, question.id])].sort((left, right) => left - right));
+      const nextReviewIds = activeQuizReviewIds.filter((id) => id !== question.id);
+      setQuizReviewIds(nextReviewIds);
+      setSavedQuizSession(null);
+      safeSaveQuiz(nextReviewIds, null);
+      setAdminPendingDelete("");
+      setAdminNotice("4択クイズを削除しました。問題数と問題番号は自動で詰め直されました。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "4択クイズを削除できませんでした。");
     } finally {
       setAdminBusyCard(null);
     }
@@ -750,6 +867,7 @@ export default function Home() {
     setAdminPassword("");
     setAdminError("");
     setAdminNotice("");
+    setAdminPendingDelete("");
     setScreen("home");
   };
 
@@ -759,12 +877,12 @@ export default function Home() {
       setIsAdvancing(true);
 
       const nextReviewIds = updateReviewIds(
-        reviewCardIdsByLesson[selectedLesson],
+        activeReviewCardIdsByLesson[selectedLesson],
         currentCard.id,
         rating,
       );
       const nextReviewCardIdsByLesson = {
-        ...reviewCardIdsByLesson,
+        ...activeReviewCardIdsByLesson,
         [selectedLesson]: nextReviewIds,
       };
       const nextKnown = knownCount + (rating === "known" ? 1 : 0);
@@ -818,7 +936,7 @@ export default function Home() {
       knownCount,
       lastSession,
       revealed,
-      reviewCardIdsByLesson,
+      activeReviewCardIdsByLesson,
       selectedLesson,
       sessionCards.length,
       sessionMode,
@@ -889,68 +1007,9 @@ export default function Home() {
         <section className="screen screen--home" aria-labelledby="app-title">
           <HomeHeader />
 
-          <section className="quiz-launch-panel" aria-labelledby="quiz-launch-title">
-            <div className="quiz-launch-copy">
-              <div className="quiz-launch-meta">
-                <span>4択 {quizBank.length}問</span>
-                <span>解き直し {quizReviewIds.length}問</span>
-                {savedQuizSession && (
-                  <span>回答済み {savedQuizSession.answers.length} / {savedQuizSession.questionIds.length}</span>
-                )}
-              </div>
-              <div className="lesson-title-row">
-                <h2 id="quiz-launch-title">{QUIZ_LESSON.label}</h2>
-                <a
-                  className="youtube-icon-button"
-                  href={QUIZ_LESSON.videoUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`${QUIZ_LESSON.label}の授業動画をYouTubeで見る`}
-                  title="授業動画をYouTubeで見る"
-                >
-                  <span className="youtube-play-mark" aria-hidden="true" />
-                </a>
-              </div>
-              <h3>{QUIZ_LESSON.title}</h3>
-            </div>
-            <div className="quiz-launch-actions">
-              {savedQuizSession && (
-                <button className="quiz-resume-button" onClick={resumeQuiz} data-testid="resume-basic-order-quiz">
-                  <span aria-hidden="true">▶</span>
-                  <span>
-                    <strong>途中から再開</strong>
-                    <small>Q{String(savedQuizSession.questionIds[savedQuizSession.currentIndex]).padStart(2, "0")}・回答済み {savedQuizSession.answers.length}問</small>
-                  </span>
-                  <span aria-hidden="true">→</span>
-                </button>
-              )}
-              <button className="quiz-start-button" onClick={() => startQuiz()} data-testid="start-basic-order-quiz">
-                <span className="quiz-start-button__count">{quizBank.length}</span>
-                <span>
-                  <strong>{savedQuizSession ? "最初から始める" : "クイズを始める"}</strong>
-                  <small>全{quizBank.length}問</small>
-                </span>
-                <span aria-hidden="true">→</span>
-              </button>
-              <div className="quiz-secondary-actions">
-                <button
-                  className="quiz-review-button"
-                  onClick={() => startQuiz(quizBank.filter((question) => quizReviewSet.has(question.id)))}
-                  disabled={quizReviewIds.length === 0}
-                  data-testid="start-quiz-review"
-                >
-                  ↺ 解き直し {quizReviewIds.length}問
-                </button>
-                <button className="quiz-list-button" onClick={() => setScreen("quiz-list")} data-testid="open-quiz-list">
-                  ☰ クイズ問題一覧
-                </button>
-              </div>
-            </div>
-          </section>
-
           {(Object.keys(LESSONS) as LessonId[]).map((lessonId) => {
             const lesson = LESSONS[lessonId];
-            const lessonReviewIds = reviewCardIdsByLesson[lessonId];
+            const lessonReviewIds = activeReviewCardIdsByLesson[lessonId];
             return (
               <section className="mode-panel" aria-label={lesson.label} key={lessonId}>
                 <div className="section-heading">
@@ -1020,10 +1079,69 @@ export default function Home() {
             );
           })}
 
+          <section className="quiz-launch-panel" aria-labelledby="quiz-launch-title">
+            <div className="quiz-launch-copy">
+              <div className="quiz-launch-meta">
+                <span>4択 {quizBank.length}問</span>
+                <span>解き直し {activeQuizReviewIds.length}問</span>
+                {savedQuizSession && (
+                  <span>回答済み {savedQuizSession.answers.length} / {savedQuizSession.questionIds.length}</span>
+                )}
+              </div>
+              <div className="lesson-title-row">
+                <h2 id="quiz-launch-title">{QUIZ_LESSON.label}</h2>
+                <a
+                  className="youtube-icon-button"
+                  href={QUIZ_LESSON.videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${QUIZ_LESSON.label}の授業動画をYouTubeで見る`}
+                  title="授業動画をYouTubeで見る"
+                >
+                  <span className="youtube-play-mark" aria-hidden="true" />
+                </a>
+              </div>
+              <h3>{QUIZ_LESSON.title}</h3>
+            </div>
+            <div className="quiz-launch-actions">
+              {savedQuizSession && (
+                <button className="quiz-resume-button" onClick={resumeQuiz} data-testid="resume-basic-order-quiz">
+                  <span aria-hidden="true">▶</span>
+                  <span>
+                    <strong>途中から再開</strong>
+                    <small>Q{String(quizQuestionNumber(savedQuizSession.questionIds[savedQuizSession.currentIndex])).padStart(2, "0")}・回答済み {savedQuizSession.answers.length}問</small>
+                  </span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              )}
+              <button className="quiz-start-button" onClick={() => startQuiz()} data-testid="start-basic-order-quiz">
+                <span className="quiz-start-button__count">{quizBank.length}</span>
+                <span>
+                  <strong>{savedQuizSession ? "最初から始める" : "クイズを始める"}</strong>
+                  <small>全{quizBank.length}問</small>
+                </span>
+                <span aria-hidden="true">→</span>
+              </button>
+              <div className="quiz-secondary-actions">
+                <button
+                  className="quiz-review-button"
+                  onClick={() => startQuiz(quizBank.filter((question) => quizReviewSet.has(question.id)))}
+                  disabled={activeQuizReviewIds.length === 0}
+                  data-testid="start-quiz-review"
+                >
+                  ↺ 解き直し {activeQuizReviewIds.length}問
+                </button>
+                <button className="quiz-list-button" onClick={() => setScreen("quiz-list")} data-testid="open-quiz-list">
+                  ☰ クイズ問題一覧
+                </button>
+              </div>
+            </div>
+          </section>
+
           <div className="home-footer">
             {lastSession && (
               <p className="last-result">
-                前回：{LESSONS[lastSession.lessonId ?? "tenten"].label}・{modeLabel(lastSession.lessonId ?? "tenten", lastSession.mode)}・
+                前回：{LESSONS[lastSession.lessonId ?? "tenten"].label}・{modeLabel(lastSession.lessonId ?? "tenten", lastSession.mode, lastSession.count)}・
                 <strong>{lastSession.rate}%</strong>・ランク
                 <strong>{lastSession.rank}</strong>
               </p>
@@ -1059,7 +1177,7 @@ export default function Home() {
           <article className={`quiz-card ${quizSelectedIndex === null ? "" : "quiz-card--answered"}`}>
             <div className="quiz-card__meta">
               <span>{currentQuizQuestion.chapter}</span>
-              <strong>Q{String(currentQuizQuestion.id).padStart(2, "0")}</strong>
+              <strong>Q{String(quizQuestionNumber(currentQuizQuestion.id)).padStart(2, "0")}</strong>
             </div>
             <h2 id="quiz-question-title"><MahjongText text={currentQuizQuestion.question} /></h2>
 
@@ -1120,7 +1238,7 @@ export default function Home() {
             >
               <span aria-hidden="true">←</span> 前の問題
             </button>
-            <span className="quiz-position">Q{String(currentQuizQuestion.id).padStart(2, "0")}</span>
+            <span className="quiz-position">Q{String(quizQuestionNumber(currentQuizQuestion.id)).padStart(2, "0")}</span>
             <button className="quiz-nav-button quiz-nav-button--next" onClick={advanceQuiz} data-testid="quiz-next">
               {quizIndex < quizQuestions.length - 1
                 ? "次の問題"
@@ -1172,7 +1290,7 @@ export default function Home() {
                 {missedQuizQuestions.map((question) => (
                   <details key={question.id}>
                     <summary>
-                      <span>Q{String(question.id).padStart(2, "0")}</span>
+                      <span>Q{String(quizQuestionNumber(question.id)).padStart(2, "0")}</span>
                       <strong><MahjongText text={question.question} /></strong>
                       <i aria-hidden="true">＋</i>
                     </summary>
@@ -1257,6 +1375,7 @@ export default function Home() {
                   setAdminSection(section.id);
                   setAdminError("");
                   setAdminNotice("");
+                  setAdminPendingDelete("");
                 }}
               >
                 {section.label}
@@ -1272,9 +1391,9 @@ export default function Home() {
 
           {adminSection === "quiz" ? (
             <div className="admin-card-list" data-testid="admin-quiz-list">
-              {adminQuizDrafts.map((question) => {
-                const publishedQuestion = quizBank[question.id - 1];
-                const baseQuestion = BASIC_ORDER_QUIZ[question.id - 1];
+              {adminQuizDrafts.map((question, questionIndex) => {
+                const publishedQuestion = quizBank.find((item) => item.id === question.id);
+                const baseQuestion = BASIC_ORDER_QUIZ.find((item) => item.id === question.id);
                 const isChanged = !quizQuestionsEqual(question, publishedQuestion);
                 const hasOverride = !quizQuestionsEqual(publishedQuestion, baseQuestion);
                 const isComplete = question.question.trim()
@@ -1283,7 +1402,7 @@ export default function Home() {
                 return (
                   <details className="admin-card-editor" key={`quiz-${question.id}`}>
                     <summary>
-                      <span>Q{String(question.id).padStart(2, "0")}</span>
+                      <span>Q{String(questionIndex + 1).padStart(2, "0")}</span>
                       <strong>{question.question || "（問題文未入力）"}</strong>
                       {hasOverride && <small>編集済み</small>}
                       <i aria-hidden="true">＋</i>
@@ -1344,6 +1463,14 @@ export default function Home() {
                         </button>
                         <button
                           type="button"
+                          className="admin-delete-button"
+                          onClick={() => deleteAdminQuizQuestion(question, questionIndex + 1)}
+                          disabled={adminBusyCard !== null}
+                        >
+                          {adminPendingDelete === `quiz-${question.id}` ? "削除を確定" : "問題を削除"}
+                        </button>
+                        <button
+                          type="button"
                           className="admin-save-button"
                           onClick={() => saveAdminQuizQuestion(question)}
                           disabled={adminBusyCard !== null || !isChanged || !isComplete}
@@ -1356,18 +1483,38 @@ export default function Home() {
                   </details>
                 );
               })}
+              {deletedQuizIds.length > 0 && (
+                <div className="admin-deleted-list">
+                  <h3>削除済みの問題</h3>
+                  <p>必要な問題は初期文の状態で戻せます。</p>
+                  {deletedQuizIds.map((questionId) => {
+                    const baseQuestion = BASIC_ORDER_QUIZ.find((item) => item.id === questionId);
+                    if (!baseQuestion) return null;
+                    return (
+                      <div className="admin-deleted-row" key={`deleted-quiz-${questionId}`}>
+                        <span>{baseQuestion.question}</span>
+                        <button type="button" onClick={() => restoreAdminQuizQuestion(questionId)} disabled={adminBusyCard !== null}>
+                          問題を戻す
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
             <div className="admin-card-list">
-              {adminDrafts[adminSection].map((card) => {
-                const isChanged = card.question !== cardsByLesson[adminSection][card.id - 1]?.question
-                  || card.answer !== cardsByLesson[adminSection][card.id - 1]?.answer;
-                const hasOverride = cardsByLesson[adminSection][card.id - 1]?.question !== LESSONS[adminSection].cards[card.id - 1]?.question
-                  || cardsByLesson[adminSection][card.id - 1]?.answer !== LESSONS[adminSection].cards[card.id - 1]?.answer;
+              {adminDrafts[adminSection].map((card, cardIndex) => {
+                const publishedCard = cardsByLesson[adminSection].find((item) => item.id === card.id);
+                const baseCard = LESSONS[adminSection].cards.find((item) => item.id === card.id);
+                const isChanged = card.question !== publishedCard?.question
+                  || card.answer !== publishedCard?.answer;
+                const hasOverride = publishedCard?.question !== baseCard?.question
+                  || publishedCard?.answer !== baseCard?.answer;
                 return (
                   <details className="admin-card-editor" key={`${adminSection}-${card.id}`}>
                     <summary>
-                      <span>Q{String(card.id).padStart(2, "0")}</span>
+                      <span>Q{String(cardIndex + 1).padStart(2, "0")}</span>
                       <strong>{card.question || "（問題文未入力）"}</strong>
                       {hasOverride && <small>編集済み</small>}
                       <i aria-hidden="true">＋</i>
@@ -1398,6 +1545,14 @@ export default function Home() {
                         </button>
                         <button
                           type="button"
+                          className="admin-delete-button"
+                          onClick={() => deleteAdminCard(adminSection, card, cardIndex + 1)}
+                          disabled={adminBusyCard !== null}
+                        >
+                          {adminPendingDelete === `card-${adminSection}-${card.id}` ? "削除を確定" : "問題を削除"}
+                        </button>
+                        <button
+                          type="button"
                           className="admin-save-button"
                           onClick={() => saveAdminCard(adminSection, card)}
                           disabled={adminBusyCard !== null || !isChanged || !card.question.trim() || !card.answer.trim()}
@@ -1410,6 +1565,24 @@ export default function Home() {
                   </details>
                 );
               })}
+              {deletedCardIdsByLesson[adminSection].length > 0 && (
+                <div className="admin-deleted-list">
+                  <h3>削除済みの問題</h3>
+                  <p>必要な問題は初期文の状態で戻せます。</p>
+                  {deletedCardIdsByLesson[adminSection].map((cardId) => {
+                    const baseCard = LESSONS[adminSection].cards.find((item) => item.id === cardId);
+                    if (!baseCard) return null;
+                    return (
+                      <div className="admin-deleted-row" key={`deleted-${adminSection}-${cardId}`}>
+                        <span>{baseCard.question}</span>
+                        <button type="button" onClick={() => restoreAdminCard(adminSection, cardId)} disabled={adminBusyCard !== null}>
+                          問題を戻す
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -1422,7 +1595,7 @@ export default function Home() {
               ×
             </button>
             <div className="session-title">
-              <span>{LESSONS[selectedLesson].label} · {modeLabel(selectedLesson, sessionMode)}</span>
+              <span>{LESSONS[selectedLesson].label} · {modeLabel(selectedLesson, sessionMode, sessionCards.length)}</span>
               <strong>
                 {cardIndex + 1}<small> / {sessionCards.length}</small>
               </strong>
@@ -1440,7 +1613,7 @@ export default function Home() {
             <article className={`flashcard ${revealed ? "flashcard--revealed" : ""}`}>
               <div className="card-meta">
                 <span>QUESTION</span>
-                <strong>Q{String(currentCard.id).padStart(2, "0")}</strong>
+                <strong>Q{String(flashcardNumber(selectedLesson, currentCard.id)).padStart(2, "0")}</strong>
               </div>
               <p className="question-text"><MahjongText text={currentCard.question} /></p>
 
@@ -1500,7 +1673,7 @@ export default function Home() {
             <p className="section-kicker">SESSION COMPLETE</p>
             <h2 id="result-title">おつかれさまでした</h2>
             <p className="result-subtitle">
-              {LESSONS[lastSession.lessonId ?? "tenten"].label} · {modeLabel(lastSession.lessonId ?? "tenten", lastSession.mode)} 完了
+              {LESSONS[lastSession.lessonId ?? "tenten"].label} · {modeLabel(lastSession.lessonId ?? "tenten", lastSession.mode, lastSession.count)} 完了
             </p>
 
             <div className="result-score">
@@ -1550,12 +1723,12 @@ export default function Home() {
               >
                 同じモードをもう一周
               </button>
-              {reviewCardIdsByLesson[lastSession.lessonId ?? "tenten"].length > 0 && (
+              {activeReviewCardIdsByLesson[lastSession.lessonId ?? "tenten"].length > 0 && (
                 <button
                   className="review-button"
                   onClick={() => startSession(lastSession.lessonId ?? "tenten", "review")}
                 >
-                  解き直しカードを復習（{reviewCardIdsByLesson[lastSession.lessonId ?? "tenten"].length}枚）
+                  解き直しカードを復習（{activeReviewCardIdsByLesson[lastSession.lessonId ?? "tenten"].length}枚）
                 </button>
               )}
               <button className="text-button" onClick={() => setScreen("home")}>
@@ -1577,7 +1750,7 @@ export default function Home() {
               <h2 id="quiz-list-title">クイズ問題一覧</h2>
             </div>
             <span className="review-count">
-              解き直し <strong>{quizReviewIds.length}</strong>問
+              解き直し <strong>{activeQuizReviewIds.length}</strong>問
             </span>
           </div>
 
@@ -1586,9 +1759,9 @@ export default function Home() {
             <button
               className="review-button"
               onClick={() => startQuiz(quizBank.filter((question) => quizReviewSet.has(question.id)))}
-              disabled={quizReviewIds.length === 0}
+              disabled={activeQuizReviewIds.length === 0}
             >
-              解き直し{quizReviewIds.length}問を解く
+              解き直し{activeQuizReviewIds.length}問を解く
             </button>
           </div>
 
@@ -1597,13 +1770,13 @@ export default function Home() {
           </p>
 
           <div className="question-list quiz-question-list">
-            {quizBank.map((question) => (
+            {quizBank.map((question, questionIndex) => (
               <details
                 key={question.id}
                 className={quizReviewSet.has(question.id) ? "question-row question-row--review" : "question-row"}
               >
                 <summary>
-                  <span className="question-number">Q{String(question.id).padStart(2, "0")}</span>
+                  <span className="question-number">Q{String(questionIndex + 1).padStart(2, "0")}</span>
                   <span><MahjongText text={question.question} /></span>
                   {quizReviewSet.has(question.id) && <span className="review-tag">解き直し</span>}
                   <span className="chevron" aria-hidden="true">＋</span>
@@ -1664,13 +1837,13 @@ export default function Home() {
           </p>
 
           <div className="question-list">
-            {cardsByLesson[selectedLesson].map((card) => (
+            {cardsByLesson[selectedLesson].map((card, cardNumber) => (
               <details
                 key={card.id}
                 className={reviewSet.has(card.id) ? "question-row question-row--review" : "question-row"}
               >
                 <summary>
-                  <span className="question-number">Q{String(card.id).padStart(2, "0")}</span>
+                  <span className="question-number">Q{String(cardNumber + 1).padStart(2, "0")}</span>
                   <span><MahjongText text={card.question} /></span>
                   {reviewSet.has(card.id) && <span className="review-tag">解き直し</span>}
                   <span className="chevron" aria-hidden="true">＋</span>

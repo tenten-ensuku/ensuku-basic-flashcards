@@ -12,12 +12,13 @@ import {
   createSessionCards,
   formatDuration,
   getRank,
+  mergeFlashcardOverrides,
   readProgress,
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships three flashcard lessons as ver19", () => {
-  assert.equal(APP_VERSION, 19);
+test("ships three flashcard lessons as ver20", () => {
+  assert.equal(APP_VERSION, 20);
   assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v4");
   assert.equal(LEGACY_STORAGE_KEY, "ensuku-basic-flashcards-v3");
   assert.equal(FLASHCARDS.length, 50);
@@ -27,7 +28,7 @@ test("ships three flashcard lessons as ver19", () => {
   assert.deepEqual(NEJIMAKI_FLASHCARDS.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));
   assert.deepEqual(SIX_TILE_FLASHCARDS.map(({ id }) => id), Array.from({ length: 30 }, (_, index) => index + 1));
   assert.equal(LESSONS.tenten0718.label, "7/18　てんてん先生　6枚形+完全形何切る？");
-  assert.equal(LESSONS.tenten0718.videoUrl, "");
+  assert.equal(LESSONS.tenten0718.videoUrl, "https://youtu.be/VRqWc-waiDI");
   assert.equal(LESSONS.tenten.label, "7/14　てんてん先生　基礎講義復習");
   assert.equal(LESSONS.tenten.videoUrl, "https://www.youtube.com/watch?v=Gu7x_B0-3MU");
   assert.equal(LESSONS.nejimaki.label, "7/2　ねじまき鳥先生　基礎講義②");
@@ -107,6 +108,17 @@ test("creates ordered and isolated sessions for all lessons", () => {
   assert.equal(createSessionCards("tenten", "all", [], editedCards)[23].question, "管理画面で編集した問題");
   assert.throws(() => createSessionCards("missing", "all"), /Unknown lesson/);
   assert.throws(() => createSessionCards("tenten", "quick"), /Unknown session mode/);
+});
+
+test("removes deleted flashcards while preserving stable internal ids", () => {
+  const merged = mergeFlashcardOverrides(SIX_TILE_FLASHCARDS, [
+    { lessonId: "tenten0718", id: 2, question: "", answer: "", deleted: true },
+    { lessonId: "tenten0718", id: 3, question: "編集後", answer: "編集後の答え" },
+  ], "tenten0718");
+  assert.equal(merged.length, 29);
+  assert.deepEqual(merged.slice(0, 3).map(({ id }) => id), [1, 3, 4]);
+  assert.equal(merged[1].question, "編集後");
+  assert.deepEqual(createSessionCards("tenten0718", "review", [2, 3], merged).map(({ id }) => id), [3]);
 });
 
 test("includes the approved tile assets for every numbered suit", () => {

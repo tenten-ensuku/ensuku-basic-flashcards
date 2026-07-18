@@ -76,6 +76,16 @@ test("merges public quiz overrides without mutating bundled questions", () => {
   assert.notEqual(BASIC_ORDER_QUIZ[0].question, "管理画面で編集した4択問題");
 });
 
+test("filters deleted quiz questions and leaves later stable ids intact", () => {
+  const merged = mergeQuizOverrides(BASIC_ORDER_QUIZ, [{
+    quizId: QUIZ_LESSON.id,
+    id: 2,
+    deleted: true,
+  }]);
+  assert.equal(merged.length, 29);
+  assert.deepEqual(merged.slice(0, 3).map(({ id }) => id), [1, 3, 4]);
+});
+
 test("restores review questions and an incomplete quiz safely", () => {
   assert.equal(QUIZ_STORAGE_KEY, "ensuku-basic-order-quiz-v1");
   assert.deepEqual(readQuizProgress(null), { reviewQuestionIds: [], session: null });

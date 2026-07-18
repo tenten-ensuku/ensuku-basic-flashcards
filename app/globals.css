@@ -620,7 +620,7 @@ summary:focus-visible {
 
 .admin-card-actions {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: 4px;
 }
@@ -642,6 +642,57 @@ summary:focus-visible {
   border: 1px solid rgba(114, 91, 212, 0.25);
   background: #eee9ff;
   color: #6348c5;
+}
+
+.admin-delete-button {
+  border: 1px solid rgba(205, 62, 69, 0.35);
+  background: #fff0f1;
+  color: #ae2833;
+}
+
+.admin-deleted-list {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px dashed rgba(205, 62, 69, 0.32);
+  border-radius: 16px;
+  background: rgba(255, 245, 246, 0.86);
+}
+
+.admin-deleted-list h3,
+.admin-deleted-list p {
+  margin: 0;
+}
+
+.admin-deleted-list p {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.admin-deleted-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(205, 62, 69, 0.12);
+}
+
+.admin-deleted-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-deleted-row button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(114, 91, 212, 0.25);
+  border-radius: 10px;
+  background: #eee9ff;
+  color: #6348c5;
+  cursor: pointer;
+  font-weight: 900;
 }
 
 .admin-save-button {
@@ -2086,6 +2137,18 @@ summary:focus-visible {
 
   .admin-lesson-tabs {
     grid-template-columns: 1fr;
+  }
+
+  .admin-card-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-deleted-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-deleted-row span {
+    white-space: normal;
   }
 
   .review-tag {

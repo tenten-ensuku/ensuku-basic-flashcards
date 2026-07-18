@@ -308,6 +308,11 @@ export const BASIC_ORDER_QUIZ = Object.freeze([
 ]);
 
 export function mergeQuizOverrides(baseQuestions, overrides, quizId = QUIZ_LESSON.id) {
+  const deletedIds = new Set(
+    overrides
+      .filter((override) => override.quizId === quizId && override.deleted)
+      .map((override) => override.id),
+  );
   const questions = baseQuestions.map((question) => ({ ...question, options: [...question.options] }));
   for (const override of overrides) {
     if (override.quizId !== quizId) continue;
@@ -321,7 +326,7 @@ export function mergeQuizOverrides(baseQuestions, overrides, quizId = QUIZ_LESSO
       explanation: override.explanation,
     };
   }
-  return questions;
+  return questions.filter((question) => !deletedIds.has(question.id));
 }
 
 export function choiceLabel(index) {

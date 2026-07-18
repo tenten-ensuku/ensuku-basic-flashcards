@@ -54,20 +54,20 @@ async function ensureSchema(db) {
 }
 
 function parseCardPath(pathname) {
-  const match = pathname.match(/^\/api\/admin\/cards\/([^/]+)\/(\d+)$/);
+  const match = pathname.match(/^\/api\/admin\/cards\/([^/]+)\/(\d+)(\/delete)?$/);
   if (!match) return null;
   const limit = CARD_LIMITS[match[1]];
   const cardId = Number(match[2]);
   if (!limit || !Number.isInteger(cardId) || cardId < 1 || cardId > limit) return null;
-  return { lessonId: match[1], cardId };
+  return { lessonId: match[1], cardId, deleteProblem: Boolean(match[3]) };
 }
 
 function parseQuizPath(pathname) {
-  const match = pathname.match(/^\/api\/admin\/quizzes\/basic-order-2026-07-16\/(\d+)$/);
+  const match = pathname.match(/^\/api\/admin\/quizzes\/basic-order-2026-07-16\/(\d+)(\/delete)?$/);
   if (!match) return null;
   const questionId = Number(match[1]);
   if (!Number.isInteger(questionId) || questionId < 1 || questionId > 30) return null;
-  return { quizId: QUIZ_ID, questionId };
+  return { quizId: QUIZ_ID, questionId, deleteProblem: Boolean(match[2]) };
 }
 
 export async function handleAdminApi(request, env) {
@@ -108,16 +108,17 @@ export async function handleAdminApi(request, env) {
 
   if (url.pathname === "/api/cards" && request.method === "GET") {
     const cardResult = await env.DB.prepare(
-      "SELECT lesson_id, card_id, question, answer, updated_at FROM flashcard_overrides_v2 ORDER BY lesson_id, card_id",
+      "SELECT lesson_id, card_id, question, answer, deleted, updated_at FROM flashcard_overrides_v2 ORDER BY lesson_id, card_id",
     ).all();
     const quizResult = await env.DB.prepare(
-      "SELECT quiz_id, question_id, question, options_json, correct_index, explanation, updated_at FROM quiz_overrides ORDER BY quiz_id, question_id",
+      "SELECT quiz_id, question_id, question, options_json, correct_index, explanation, deleted, updated_at FROM quiz_overrides ORDER BY quiz_id, question_id",
     ).all();
     const overrides = (cardResult.results ?? []).map((row) => ({
       lessonId: row.lesson_id,
       id: row.card_id,
       question: row.question,
       answer: row.answer,
+      ...(row.deleted === 1 ? { deleted: true } : {}),
       updatedAt: row.updated_at,
     }));
     const quizOverrides = (quizResult.results ?? []).flatMap((row) => {
@@ -133,6 +134,7 @@ export async function handleAdminApi(request, env) {
           options,
           correctIndex: row.correct_index,
           explanation: row.explanation,
+          ...(row.deleted === 1 ? { deleted: true } : {}),
           updatedAt: row.updated_at,
         }];
       } catch {
@@ -146,6 +148,25 @@ export async function handleAdminApi(request, env) {
   if (quizPath) {
     if (!hasValidPassword(request, env)) {
       return json(request, { error: "管理パスワードを確認してください。" }, 401);
+    }
+    if (quizPath.deleteProblem) {
+      if (request.method !== "DELETE") {
+        return json(request, { error: "対応していない操作です。" }, 405);
+      }
+      const statement = env.DB.prepare(`
+        INSERT INTO quiz_overrides (
+          quiz_id, question_id, question, options_json, correct_index, explanation, deleted, updated_at
+        ) VALUES (?, ?, '', '["", "", "", ""]', 0, '', 1, CURRENT_TIMESTAMP)
+        ON CONFLICT(quiz_id, question_id) DO UPDATE SET
+          question = '',
+          options_json = '["", "", "", ""]',
+          correct_index = 0,
+          explanation = '',
+          deleted = 1,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+      await statement.bind(quizPath.quizId, quizPath.questionId).run();
+      return json(request, { ok: true, deleted: true });
     }
     if (request.method === "PUT") {
       let body;
@@ -171,13 +192,14 @@ export async function handleAdminApi(request, env) {
       }
       const statement = env.DB.prepare(`
         INSERT INTO quiz_overrides (
-          quiz_id, question_id, question, options_json, correct_index, explanation, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          quiz_id, question_id, question, options_json, correct_index, explanation, deleted, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
         ON CONFLICT(quiz_id, question_id) DO UPDATE SET
           question = excluded.question,
           options_json = excluded.options_json,
           correct_index = excluded.correct_index,
           explanation = excluded.explanation,
+          deleted = 0,
           updated_at = CURRENT_TIMESTAMP
       `);
       await statement.bind(
@@ -211,6 +233,23 @@ export async function handleAdminApi(request, env) {
     return json(request, { error: "管理パスワードを確認してください。" }, 401);
   }
 
+  if (cardPath.deleteProblem) {
+    if (request.method !== "DELETE") {
+      return json(request, { error: "対応していない操作です。" }, 405);
+    }
+    const statement = env.DB.prepare(`
+      INSERT INTO flashcard_overrides_v2 (lesson_id, card_id, question, answer, deleted, updated_at)
+      VALUES (?, ?, '', '', 1, CURRENT_TIMESTAMP)
+      ON CONFLICT(lesson_id, card_id) DO UPDATE SET
+        question = '',
+        answer = '',
+        deleted = 1,
+        updated_at = CURRENT_TIMESTAMP
+    `);
+    await statement.bind(cardPath.lessonId, cardPath.cardId).run();
+    return json(request, { ok: true, deleted: true });
+  }
+
   if (request.method === "PUT") {
     let body;
     try {
@@ -227,11 +266,12 @@ export async function handleAdminApi(request, env) {
       return json(request, { error: "文章が長すぎます。" }, 400);
     }
     const statement = env.DB.prepare(`
-      INSERT INTO flashcard_overrides_v2 (lesson_id, card_id, question, answer, updated_at)
-      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      INSERT INTO flashcard_overrides_v2 (lesson_id, card_id, question, answer, deleted, updated_at)
+      VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
       ON CONFLICT(lesson_id, card_id) DO UPDATE SET
         question = excluded.question,
         answer = excluded.answer,
+        deleted = 0,
         updated_at = CURRENT_TIMESTAMP
     `);
     await statement.bind(cardPath.lessonId, cardPath.cardId, question, answer).run();

@@ -1,0 +1,5 @@
+ALTER TABLE flashcard_overrides_v2
+ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE quiz_overrides
+ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;

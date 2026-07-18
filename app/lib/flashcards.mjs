@@ -1,4 +1,4 @@
-export const APP_VERSION = 19;
+export const APP_VERSION = 20;
 export const STORAGE_KEY = "ensuku-basic-flashcards-v4";
 export const LEGACY_STORAGE_KEY = "ensuku-basic-flashcards-v3";
 
@@ -151,7 +151,7 @@ export const LESSONS = Object.freeze({
   tenten0718: Object.freeze({
     id: "tenten0718",
     label: "7/18　てんてん先生　6枚形+完全形何切る？",
-    videoUrl: "",
+    videoUrl: "https://youtu.be/VRqWc-waiDI",
     cards: SIX_TILE_FLASHCARDS,
   }),
   tenten: Object.freeze({
@@ -167,6 +167,27 @@ export const LESSONS = Object.freeze({
     cards: NEJIMAKI_FLASHCARDS,
   }),
 });
+
+/**
+ * @param {ReadonlyArray<Flashcard>} baseCards
+ * @param {ReadonlyArray<{ lessonId: string, id: number, question?: string, answer?: string, deleted?: boolean }>} overrides
+ * @param {string} lessonId
+ */
+export function mergeFlashcardOverrides(baseCards, overrides, lessonId) {
+  const lessonOverrides = new Map(
+    overrides
+      .filter((override) => override.lessonId === lessonId)
+      .map((override) => [override.id, override]),
+  );
+  return baseCards.flatMap((card) => {
+    const override = lessonOverrides.get(card.id);
+    if (override?.deleted) return [];
+    if (override?.question && override?.answer) {
+      return [{ id: card.id, question: override.question, answer: override.answer }];
+    }
+    return [{ ...card }];
+  });
+}
 
 /**
  * @param {keyof typeof LESSONS} lessonId
