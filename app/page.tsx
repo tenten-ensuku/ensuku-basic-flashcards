@@ -999,6 +999,78 @@ export default function Home() {
     setScreen("home");
   };
 
+  const renderLessonPanel = (lessonId: LessonId) => {
+    const lesson = LESSONS[lessonId];
+    const lessonReviewIds = activeReviewCardIdsByLesson[lessonId];
+    return (
+      <section className="mode-panel" aria-label={lesson.label} key={lessonId}>
+        <div className="section-heading">
+          <div>
+            <div className="lesson-title-row">
+              <h2><LessonTitle label={lesson.label} /></h2>
+              {lesson.videoUrl && (
+                <a
+                  className="youtube-icon-button"
+                  href={lesson.videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${lesson.label}の授業動画をYouTubeで見る`}
+                  title="授業動画をYouTubeで見る"
+                >
+                  <span className="youtube-play-mark" aria-hidden="true" />
+                </a>
+              )}
+            </div>
+          </div>
+          <span className="review-count">
+            解き直し <strong>{lessonReviewIds.length}</strong>枚
+          </span>
+        </div>
+
+        <div className="mode-grid">
+          <button
+            className="mode-card mode-card--primary"
+            onClick={() => startSession(lessonId, "all")}
+            data-testid={`start-all-${lessonId}`}
+          >
+            <span className="mode-card__number">{cardsByLesson[lessonId].length}</span>
+            <span>
+              <strong>全{cardsByLesson[lessonId].length}問</strong>
+              <small>講義内容を一周する</small>
+            </span>
+            <span className="mode-card__arrow" aria-hidden="true">→</span>
+          </button>
+          <button
+            className="mode-card mode-card--review"
+            onClick={() => startSession(lessonId, "review")}
+            disabled={lessonReviewIds.length === 0}
+            data-testid={`start-review-${lessonId}`}
+          >
+            <span className="mode-card__number">↺</span>
+            <span>
+              <strong>解き直しカード</strong>
+              <small>
+                {lessonReviewIds.length
+                  ? `${lessonReviewIds.length}枚を解き直す`
+                  : "回答後に追加できます"}
+              </small>
+            </span>
+            <span className="mode-card__arrow" aria-hidden="true">→</span>
+          </button>
+        </div>
+        <button
+          className="text-button lesson-list-button"
+          onClick={() => {
+            setSelectedLesson(lessonId);
+            setScreen("list");
+          }}
+        >
+          <span aria-hidden="true">☰</span> 問題一覧を見る
+        </button>
+      </section>
+    );
+  };
+
   return (
     <main className="app-shell">
       <div className="felt-grain" aria-hidden="true" />
@@ -1007,77 +1079,7 @@ export default function Home() {
         <section className="screen screen--home" aria-labelledby="app-title">
           <HomeHeader />
 
-          {(Object.keys(LESSONS) as LessonId[]).map((lessonId) => {
-            const lesson = LESSONS[lessonId];
-            const lessonReviewIds = activeReviewCardIdsByLesson[lessonId];
-            return (
-              <section className="mode-panel" aria-label={lesson.label} key={lessonId}>
-                <div className="section-heading">
-                  <div>
-                    <div className="lesson-title-row">
-                      <h2><LessonTitle label={lesson.label} /></h2>
-                      {lesson.videoUrl && (
-                        <a
-                          className="youtube-icon-button"
-                          href={lesson.videoUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          aria-label={`${lesson.label}の授業動画をYouTubeで見る`}
-                          title="授業動画をYouTubeで見る"
-                        >
-                          <span className="youtube-play-mark" aria-hidden="true" />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                  <span className="review-count">
-                    解き直し <strong>{lessonReviewIds.length}</strong>枚
-                  </span>
-                </div>
-
-                <div className="mode-grid">
-                  <button
-                    className="mode-card mode-card--primary"
-                    onClick={() => startSession(lessonId, "all")}
-                    data-testid={`start-all-${lessonId}`}
-                  >
-                    <span className="mode-card__number">{cardsByLesson[lessonId].length}</span>
-                    <span>
-                      <strong>全{cardsByLesson[lessonId].length}問</strong>
-                      <small>講義内容を一周する</small>
-                    </span>
-                    <span className="mode-card__arrow" aria-hidden="true">→</span>
-                  </button>
-                  <button
-                    className="mode-card mode-card--review"
-                    onClick={() => startSession(lessonId, "review")}
-                    disabled={lessonReviewIds.length === 0}
-                    data-testid={`start-review-${lessonId}`}
-                  >
-                    <span className="mode-card__number">↺</span>
-                    <span>
-                      <strong>解き直しカード</strong>
-                      <small>
-                        {lessonReviewIds.length
-                          ? `${lessonReviewIds.length}枚を解き直す`
-                          : "回答後に追加できます"}
-                      </small>
-                    </span>
-                    <span className="mode-card__arrow" aria-hidden="true">→</span>
-                  </button>
-                </div>
-                <button
-                  className="text-button lesson-list-button"
-                  onClick={() => {
-                    setSelectedLesson(lessonId);
-                    setScreen("list");
-                  }}
-                >
-                  <span aria-hidden="true">☰</span> 問題一覧を見る
-                </button>
-              </section>
-            );
-          })}
+          {renderLessonPanel("tenten0718")}
 
           <section className="quiz-launch-panel" aria-labelledby="quiz-launch-title">
             <div className="quiz-launch-copy">
@@ -1137,6 +1139,9 @@ export default function Home() {
               </div>
             </div>
           </section>
+
+          {renderLessonPanel("tenten")}
+          {renderLessonPanel("nejimaki")}
 
           <div className="home-footer">
             {lastSession && (
