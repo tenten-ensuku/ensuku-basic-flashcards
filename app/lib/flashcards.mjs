@@ -1,4 +1,4 @@
-export const APP_VERSION = 17;
+export const APP_VERSION = 19;
 export const STORAGE_KEY = "ensuku-basic-flashcards-v4";
 export const LEGACY_STORAGE_KEY = "ensuku-basic-flashcards-v3";
 
@@ -113,7 +113,47 @@ export const NEJIMAKI_FLASHCARDS = Object.freeze([
   { id: 50, question: "端っこ（1234）の4連形は強い？", answer: "強くない。くっつきとしての強さは単独の強孤立牌程度。ただし、両面対子とは相性が良い。" },
 ]);
 
+/** @type {ReadonlyArray<Flashcard>} */
+export const SIX_TILE_FLASHCARDS = Object.freeze([
+  { id: 1, question: "6枚形の整理ドリルにおいて、答えるべき『正解』とはどのような内容？", answer: "その6枚の中から、何を引けば2面子が完成するかという受け入れを答える。" },
+  { id: 2, question: "『23456』のような5連続の形に、さらに1枚（例：5）がくっついた『234565』のような形を何と呼ぶ？", answer: "5連形プラス1（または三面張プラス1）。" },
+  { id: 3, question: "『234565』のような5連形プラス1の形の受け入れ（1面子＋1雀頭の状態から2面子にする牌）は？", answer: "1・4・7の三面張受けと、重なりの5。" },
+  { id: 4, question: "『22233』のように、暗刻の隣が対子になっている形を何と呼ぶ？", answer: "中対子（なかトイツ）君。" },
+  { id: 5, question: "『22233』という中対子君の形の受け入れ範囲の特徴は？", answer: "非常に強力な形で、端から端まで（例では1から5まで）が受け入れになる。" },
+  { id: 6, question: "『22244』のように、暗刻から1つ飛ばして対子がある形を何と呼ぶ？", answer: "端対子（はしトイツ）君。" },
+  { id: 7, question: "『22244』という端対子君の形の受け入れ範囲は？", answer: "端から対子の隣まで（例では2から5まで）。" },
+  { id: 8, question: "暗刻はあるが対子がない形（例：22234）の受け入れを効率よく探す方法は？", answer: "両端のターツ待ちを答える。例では1・4と2・5の複合で、1〜5が受け入れになる。" },
+  { id: 9, question: "『24568』のように、真ん中の順子を挟んで左右にカンチャン待ちがある形を何と呼ぶ？", answer: "離れリャンカン。" },
+  { id: 10, question: "『24568』という離れリャンカンの受け入れを答える際のポイントは？", answer: "離れたそれぞれのカンチャンを埋める牌を答える。例では3と7。" },
+  { id: 11, question: "『23457』のように、片方が両面、もう片方がカンチャンになっている形を何と呼ぶ？", answer: "両面カンチャン。" },
+  { id: 12, question: "両面カンチャンを自分で作る際のコツは？", answer: "中膨れ形にカンチャンをくっつける。" },
+  { id: 13, question: "漫画『打姫オバカミーコ』に登場し、授業で最も重視されている格言は？", answer: "『弱いところをフォローして、強いところはフォローいらず』。" },
+  { id: 14, question: "面子やターツの隣にあり、受け入れを増やしたり質を高めたりしてくれる牌を何と呼ぶ？", answer: "フォロー牌。" },
+  { id: 15, question: "カンチャンなどの弱い部分を助ける『愚形フォロー牌』の価値が高い理由は？", answer: "受け入れが少ない場所をフォローすることで、受け入れ枚数が倍増するなどの劇的な効果があるから。" },
+  { id: 16, question: "両面などの強い部分へのフォロー優先度が低い理由は？", answer: "元々十分強いため、フォローしても伸びしろが少なく、フォローなしで一人立ちさせても問題ないから。" },
+  { id: 17, question: "2面子あり、雀頭もあるが、5ブロックに足りない状態を授業では何と呼ぶ？", answer: "くっつきのリャンシャンテン。" },
+  { id: 18, question: "ブロック診断において、基本的に一向聴となるためのブロック構成は？", answer: "2面子＋雀頭＋2ターツの計5ブロック。" },
+  { id: 19, question: "5ブロックあっても一向聴にならない例外は？", answer: "雀頭（アタマ）がない場合。" },
+  { id: 20, question: "手牌に3面子ある場合、最低何ブロックあれば一向聴になる？", answer: "4ブロック（3面子＋1ターツなど）。" },
+  { id: 21, question: "雀頭がなく、3面子と1ターツ（計4ブロック）で構成される一向聴を何と呼ぶ？", answer: "ヘッドレス1型。" },
+  { id: 22, question: "『135』のようなリャンカン形の受け入れ枚数は？", answer: "2と4の計2種8枚。" },
+  { id: 23, question: "6枚形ドリルには、重複を除いて全部で何種類の基本形が登場する？", answer: "13種類。" },
+  { id: 24, question: "授業で言及されている7枚形のドリルは何種類？", answer: "19種類。" },
+  { id: 25, question: "『1-4』と『3-6』の両面待ちでは、一般的にどちらの方が和了率が高い？", answer: "端にかかっている1-4。他家が使いにくく、切られやすいため。" },
+  { id: 26, question: "2枚組×2、1枚組×2からなる『21系』（例：223345）の効率的な解き方は？", answer: "一盃口を完成させる筋と、端の対子の縦受けを答える。" },
+  { id: 27, question: "対子が3つ（3ヘッド）ある状態から1枚切る際、枚数のロスは何枚？", answer: "切った牌そのものの2枚分のみ。" },
+  { id: 28, question: "三面張などの強いフォローをあえて外す場合の判断基準は？", answer: "他の弱い部分にフォローを回すことで、最終形が良形（両面以上）になりやすくなるため。" },
+  { id: 29, question: "6枚形ドリルを上級者レベルでこなす際の目標タイム（13問）は？", answer: "15秒程度。形を脳に染み込ませ、反射で答えるレベル。" },
+  { id: 30, question: "授業で『最強』と言及されている、暗刻を含んだ6枚形は？", answer: "暗刻と中対子の組み合わせ（中対子君）。受け入れが非常に広いため。" },
+]);
+
 export const LESSONS = Object.freeze({
+  tenten0718: Object.freeze({
+    id: "tenten0718",
+    label: "7/18　てんてん先生　6枚形+完全形何切る？",
+    videoUrl: "",
+    cards: SIX_TILE_FLASHCARDS,
+  }),
   tenten: Object.freeze({
     id: "tenten",
     label: "7/14　てんてん先生　基礎講義復習",
@@ -168,7 +208,7 @@ export function formatDuration(seconds) {
 }
 
 export function readProgress(raw) {
-  const empty = { reviewCardIdsByLesson: { tenten: [], nejimaki: [] }, lastSession: null };
+  const empty = { reviewCardIdsByLesson: { tenten0718: [], tenten: [], nejimaki: [] }, lastSession: null };
   if (!raw) return empty;
   try {
     const parsed = JSON.parse(raw);
@@ -178,6 +218,7 @@ export function readProgress(raw) {
     const legacyTentenIds = parsed.reviewCardIds;
     return {
       reviewCardIdsByLesson: {
+        tenten0718: sanitize(parsed.reviewCardIdsByLesson?.tenten0718, SIX_TILE_FLASHCARDS.length),
         tenten: sanitize(parsed.reviewCardIdsByLesson?.tenten ?? legacyTentenIds, FLASHCARDS.length),
         nejimaki: sanitize(parsed.reviewCardIdsByLesson?.nejimaki, NEJIMAKI_FLASHCARDS.length),
       },

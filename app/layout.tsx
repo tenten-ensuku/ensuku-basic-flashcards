@@ -3,7 +3,7 @@ import "./globals.css";
 
 const title = "一向聴 基礎講義フラッシュカード";
 const description =
-  "麻雀の基礎講義を、4択30問の基本序列クイズと2授業・全100問のフラッシュカードで復習できる無料ドリル。";
+  "麻雀の基礎講義を、4択30問の基本序列クイズと3授業・全130問のフラッシュカードで復習できる無料ドリル。";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
@@ -16,8 +16,9 @@ export const metadata: Metadata = {
   description,
   manifest: `${basePath}/manifest.webmanifest`,
   icons: {
-    icon: `${basePath}/favicon.svg`,
-    shortcut: `${basePath}/favicon.svg`,
+    icon: `${basePath}/icons/ensuku-192.png`,
+    shortcut: `${basePath}/icons/ensuku-192.png`,
+    apple: `${basePath}/icons/ensuku-180.png`,
   },
   openGraph: {
     title,

@@ -7,6 +7,7 @@ import {
   LEGACY_STORAGE_KEY,
   LESSONS,
   NEJIMAKI_FLASHCARDS,
+  SIX_TILE_FLASHCARDS,
   STORAGE_KEY,
   createSessionCards,
   formatDuration,
@@ -15,14 +16,18 @@ import {
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships two 50-card lessons as ver17", () => {
-  assert.equal(APP_VERSION, 17);
+test("ships three flashcard lessons as ver19", () => {
+  assert.equal(APP_VERSION, 19);
   assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v4");
   assert.equal(LEGACY_STORAGE_KEY, "ensuku-basic-flashcards-v3");
   assert.equal(FLASHCARDS.length, 50);
   assert.equal(NEJIMAKI_FLASHCARDS.length, 50);
+  assert.equal(SIX_TILE_FLASHCARDS.length, 30);
   assert.deepEqual(FLASHCARDS.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));
   assert.deepEqual(NEJIMAKI_FLASHCARDS.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));
+  assert.deepEqual(SIX_TILE_FLASHCARDS.map(({ id }) => id), Array.from({ length: 30 }, (_, index) => index + 1));
+  assert.equal(LESSONS.tenten0718.label, "7/18　てんてん先生　6枚形+完全形何切る？");
+  assert.equal(LESSONS.tenten0718.videoUrl, "");
   assert.equal(LESSONS.tenten.label, "7/14　てんてん先生　基礎講義復習");
   assert.equal(LESSONS.tenten.videoUrl, "https://www.youtube.com/watch?v=Gu7x_B0-3MU");
   assert.equal(LESSONS.nejimaki.label, "7/2　ねじまき鳥先生　基礎講義②");
@@ -70,6 +75,12 @@ test("ships two 50-card lessons as ver17", () => {
   assert.equal(NEJIMAKI_FLASHCARDS[24].answer, "6期生ずぴたーさん");
   assert.equal(NEJIMAKI_FLASHCARDS[31].question.includes("24456ｍ"), true);
   assert.equal(NEJIMAKI_FLASHCARDS[44].question.includes("11ｍ"), true);
+  assert.equal(SIX_TILE_FLASHCARDS[1].answer, "5連形プラス1（または三面張プラス1）。");
+  assert.equal(SIX_TILE_FLASHCARDS[25].answer.includes("一盃口"), true);
+  const sixTileText = SIX_TILE_FLASHCARDS.flatMap(({ question, answer }) => [question, answer]).join("\n");
+  assert.equal(sixTileText.includes("5連携"), false);
+  assert.equal(sixTileText.includes("3面ちゃん"), false);
+  assert.equal(sixTileText.includes("ソース内"), false);
 });
 
 test("uses Japanese phrase-aware wrapping for card copy", () => {
@@ -79,7 +90,7 @@ test("uses Japanese phrase-aware wrapping for card copy", () => {
   assert.doesNotMatch(css, /\.question-text\s*\{[^}]*text-wrap:\s*balance/s);
 });
 
-test("creates ordered and isolated sessions for both lessons", () => {
+test("creates ordered and isolated sessions for all lessons", () => {
   const all = createSessionCards("tenten", "all");
   assert.equal(all.length, 50);
   assert.deepEqual(all.map(({ id }) => id), Array.from({ length: 50 }, (_, index) => index + 1));
@@ -87,6 +98,9 @@ test("creates ordered and isolated sessions for both lessons", () => {
   const review = createSessionCards("nejimaki", "review", [30, 3, 9]);
   assert.deepEqual(review.map(({ id }) => id), [3, 9, 30]);
   assert.equal(review[0].question, NEJIMAKI_FLASHCARDS[2].question);
+  const sixTile = createSessionCards("tenten0718", "all");
+  assert.equal(sixTile.length, 30);
+  assert.equal(sixTile[29].question, SIX_TILE_FLASHCARDS[29].question);
   const editedCards = FLASHCARDS.map((card) => card.id === 24
     ? { ...card, question: "管理画面で編集した問題" }
     : card);
@@ -125,23 +139,23 @@ test("uses the exact rank boundaries", () => {
 });
 
 test("recovers safely from unavailable or malformed saved data", () => {
-  const empty = { reviewCardIdsByLesson: { tenten: [], nejimaki: [] }, lastSession: null };
+  const empty = { reviewCardIdsByLesson: { tenten0718: [], tenten: [], nejimaki: [] }, lastSession: null };
   assert.deepEqual(readProgress(null), empty);
   assert.deepEqual(readProgress("{broken"), empty);
   assert.deepEqual(
     readProgress(JSON.stringify({
-      reviewCardIdsByLesson: { tenten: [3, 3, 50, 51, "9"], nejimaki: [25, 1, 60] },
+      reviewCardIdsByLesson: { tenten0718: [30, 31, 2], tenten: [3, 3, 50, 51, "9"], nejimaki: [25, 1, 60] },
       lastSession: { lessonId: "nejimaki", mode: "all" },
     })),
     {
-      reviewCardIdsByLesson: { tenten: [3, 50], nejimaki: [1, 25] },
+      reviewCardIdsByLesson: { tenten0718: [2, 30], tenten: [3, 50], nejimaki: [1, 25] },
       lastSession: { lessonId: "nejimaki", mode: "all" },
     },
   );
   assert.deepEqual(
     readProgress(JSON.stringify({ reviewCardIds: [3, 50], lastSession: { mode: "review" } })),
     {
-      reviewCardIdsByLesson: { tenten: [3, 50], nejimaki: [] },
+      reviewCardIdsByLesson: { tenten0718: [], tenten: [3, 50], nejimaki: [] },
       lastSession: { mode: "review" },
     },
   );

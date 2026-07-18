@@ -673,6 +673,10 @@ summary:focus-visible {
   min-width: 0;
 }
 
+.lesson-title-topic {
+  white-space: nowrap;
+}
+
 .youtube-icon-button {
   display: grid;
   flex: 0 0 48px;
@@ -2060,6 +2064,20 @@ summary:focus-visible {
   .brand__mark {
     width: 42px;
     height: 42px;
+  }
+
+  .mode-panel .section-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .mode-panel .section-heading > div {
+    flex: 1 1 100%;
+  }
+
+  .mode-panel .section-heading .review-count {
+    margin-left: auto;
   }
 
   .question-row summary {

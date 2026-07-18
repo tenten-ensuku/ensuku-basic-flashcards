@@ -65,13 +65,13 @@ type LastSession = {
   completedAt: string;
 };
 
-const MODE_LABELS: Record<SessionMode, string> = {
-  all: "全50問",
-  review: "解き直しカード",
-};
+function modeLabel(lessonId: LessonId, mode: SessionMode) {
+  return mode === "all" ? `全${LESSONS[lessonId].cards.length}問` : "解き直しカード";
+}
 
 const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSection; label: string }> = [
   { id: "quiz", label: "7/16　4択クイズ" },
+  { id: "tenten0718", label: "7/18　てんてん先生" },
   { id: "tenten", label: "7/14　てんてん先生" },
   { id: "nejimaki", label: "7/2　ねじまき鳥先生" },
 ];
@@ -89,6 +89,7 @@ const ADMIN_API_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? "";
 
 function cloneBaseCards(): CardsByLesson {
   return {
+    tenten0718: LESSONS.tenten0718.cards.map((card) => ({ ...card })),
     tenten: LESSONS.tenten.cards.map((card) => ({ ...card })),
     nejimaki: LESSONS.nejimaki.cards.map((card) => ({ ...card })),
   };
@@ -288,6 +289,18 @@ function HomeHeader({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function LessonTitle({ label }: { label: string }) {
+  const [date, teacher, ...topicParts] = label.split("　");
+  if (!date || !teacher || topicParts.length === 0) return label;
+  return (
+    <>
+      <span>{date}　{teacher}</span>
+      <wbr />
+      <span className="lesson-title-topic">　{topicParts.join("　")}</span>
+    </>
+  );
+}
+
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
   const [cardsByLesson, setCardsByLesson] = useState<CardsByLesson>(cloneBaseCards);
@@ -300,6 +313,7 @@ export default function Home() {
   const [adminNotice, setAdminNotice] = useState("");
   const [adminBusyCard, setAdminBusyCard] = useState<number | null>(null);
   const [reviewCardIdsByLesson, setReviewCardIdsByLesson] = useState<ReviewCardIdsByLesson>({
+    tenten0718: [],
     tenten: [],
     nejimaki: [],
   });
@@ -561,6 +575,7 @@ export default function Home() {
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "ログインできませんでした。");
       setAdminDrafts({
+        tenten0718: cardsByLesson.tenten0718.map((card) => ({ ...card })),
         tenten: cardsByLesson.tenten.map((card) => ({ ...card })),
         nejimaki: cardsByLesson.nejimaki.map((card) => ({ ...card })),
       });
@@ -941,17 +956,19 @@ export default function Home() {
                 <div className="section-heading">
                   <div>
                     <div className="lesson-title-row">
-                      <h2>{lesson.label}</h2>
-                      <a
-                        className="youtube-icon-button"
-                        href={lesson.videoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label={`${lesson.label}の授業動画をYouTubeで見る`}
-                        title="授業動画をYouTubeで見る"
-                      >
-                        <span className="youtube-play-mark" aria-hidden="true" />
-                      </a>
+                      <h2><LessonTitle label={lesson.label} /></h2>
+                      {lesson.videoUrl && (
+                        <a
+                          className="youtube-icon-button"
+                          href={lesson.videoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`${lesson.label}の授業動画をYouTubeで見る`}
+                          title="授業動画をYouTubeで見る"
+                        >
+                          <span className="youtube-play-mark" aria-hidden="true" />
+                        </a>
+                      )}
                     </div>
                   </div>
                   <span className="review-count">
@@ -1006,7 +1023,7 @@ export default function Home() {
           <div className="home-footer">
             {lastSession && (
               <p className="last-result">
-                前回：{LESSONS[lastSession.lessonId ?? "tenten"].label}・{MODE_LABELS[lastSession.mode]}・
+                前回：{LESSONS[lastSession.lessonId ?? "tenten"].label}・{modeLabel(lastSession.lessonId ?? "tenten", lastSession.mode)}・
                 <strong>{lastSession.rate}%</strong>・ランク
                 <strong>{lastSession.rank}</strong>
               </p>
@@ -1405,7 +1422,7 @@ export default function Home() {
               ×
             </button>
             <div className="session-title">
-              <span>{LESSONS[selectedLesson].label} · {MODE_LABELS[sessionMode]}</span>
+              <span>{LESSONS[selectedLesson].label} · {modeLabel(selectedLesson, sessionMode)}</span>
               <strong>
                 {cardIndex + 1}<small> / {sessionCards.length}</small>
               </strong>
@@ -1483,7 +1500,7 @@ export default function Home() {
             <p className="section-kicker">SESSION COMPLETE</p>
             <h2 id="result-title">おつかれさまでした</h2>
             <p className="result-subtitle">
-              {LESSONS[lastSession.lessonId ?? "tenten"].label} · {MODE_LABELS[lastSession.mode]} 完了
+              {LESSONS[lastSession.lessonId ?? "tenten"].label} · {modeLabel(lastSession.lessonId ?? "tenten", lastSession.mode)} 完了
             </p>
 
             <div className="result-score">
@@ -1634,7 +1651,7 @@ export default function Home() {
             </button>
             <div>
               <p className="section-kicker">ALL FLASHCARDS</p>
-              <h2 id="list-title">{LESSONS[selectedLesson].label}</h2>
+              <h2 id="list-title"><LessonTitle label={LESSONS[selectedLesson].label} /></h2>
             </div>
             <span className="review-count">
               解き直し <strong>{reviewCardIds.length}</strong>枚
@@ -1642,7 +1659,7 @@ export default function Home() {
           </div>
 
           <p className="list-lead">
-            全50問の問題一覧。タップすると答えが開きます。
+            全{cardsByLesson[selectedLesson].length}問の問題一覧。タップすると答えが開きます。
             <span className="review-dot" /> は「解き直しに追加」したカードです。
           </p>
 

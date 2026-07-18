@@ -1,6 +1,11 @@
-import { FLASHCARD_OVERRIDES_SCHEMA_SQL, QUIZ_OVERRIDES_SCHEMA_SQL } from "../db/schema.mjs";
+import {
+  FLASHCARD_OVERRIDES_LEGACY_COPY_SQL,
+  FLASHCARD_OVERRIDES_SCHEMA_SQL,
+  QUIZ_OVERRIDES_SCHEMA_SQL,
+} from "../db/schema.mjs";
 
-const LESSON_IDS = new Set(["tenten", "nejimaki"]);
+const CARD_LIMITS = Object.freeze({ tenten0718: 30, tenten: 50, nejimaki: 50 });
+const LESSON_IDS = new Set(Object.keys(CARD_LIMITS));
 const QUIZ_ID = "basic-order-2026-07-16";
 const TRUSTED_ORIGINS = new Set([
   "https://tenten-ensuku.github.io",
@@ -40,14 +45,20 @@ function hasValidPassword(request, env, bodyPassword = "") {
 
 async function ensureSchema(db) {
   await db.prepare(FLASHCARD_OVERRIDES_SCHEMA_SQL).run();
+  try {
+    await db.prepare(FLASHCARD_OVERRIDES_LEGACY_COPY_SQL).run();
+  } catch {
+    // 新規DBには旧テーブルがないため、移行処理だけを読み飛ばす。
+  }
   await db.prepare(QUIZ_OVERRIDES_SCHEMA_SQL).run();
 }
 
 function parseCardPath(pathname) {
-  const match = pathname.match(/^\/api\/admin\/cards\/(tenten|nejimaki)\/(\d+)$/);
+  const match = pathname.match(/^\/api\/admin\/cards\/([^/]+)\/(\d+)$/);
   if (!match) return null;
+  const limit = CARD_LIMITS[match[1]];
   const cardId = Number(match[2]);
-  if (!Number.isInteger(cardId) || cardId < 1 || cardId > 50) return null;
+  if (!limit || !Number.isInteger(cardId) || cardId < 1 || cardId > limit) return null;
   return { lessonId: match[1], cardId };
 }
 
@@ -97,7 +108,7 @@ export async function handleAdminApi(request, env) {
 
   if (url.pathname === "/api/cards" && request.method === "GET") {
     const cardResult = await env.DB.prepare(
-      "SELECT lesson_id, card_id, question, answer, updated_at FROM flashcard_overrides ORDER BY lesson_id, card_id",
+      "SELECT lesson_id, card_id, question, answer, updated_at FROM flashcard_overrides_v2 ORDER BY lesson_id, card_id",
     ).all();
     const quizResult = await env.DB.prepare(
       "SELECT quiz_id, question_id, question, options_json, correct_index, explanation, updated_at FROM quiz_overrides ORDER BY quiz_id, question_id",
@@ -216,7 +227,7 @@ export async function handleAdminApi(request, env) {
       return json(request, { error: "文章が長すぎます。" }, 400);
     }
     const statement = env.DB.prepare(`
-      INSERT INTO flashcard_overrides (lesson_id, card_id, question, answer, updated_at)
+      INSERT INTO flashcard_overrides_v2 (lesson_id, card_id, question, answer, updated_at)
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(lesson_id, card_id) DO UPDATE SET
         question = excluded.question,
@@ -229,7 +240,7 @@ export async function handleAdminApi(request, env) {
 
   if (request.method === "DELETE") {
     const statement = env.DB.prepare(
-      "DELETE FROM flashcard_overrides WHERE lesson_id = ? AND card_id = ?",
+      "DELETE FROM flashcard_overrides_v2 WHERE lesson_id = ? AND card_id = ?",
     );
     await statement.bind(cardPath.lessonId, cardPath.cardId).run();
     return json(request, { ok: true });

@@ -122,6 +122,29 @@ test("admin can save, publish, and restore a card override", async () => {
   assert.equal(DB.rows.size, 0);
 });
 
+test("admin can edit the 7/18 lesson within its 30-card limit", async () => {
+  const DB = mockDb();
+  const env = { ADMIN_PASSWORD: "test-only-secret", DB };
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Admin-Password": "test-only-secret",
+  };
+  const saved = await handleAdminApi(request("/api/admin/cards/tenten0718/30", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ question: "7/18編集後の問題", answer: "7/18編集後の解答" }),
+  }), env);
+  assert.equal(saved.status, 200);
+  assert.equal(DB.rows.get("tenten0718-30").answer, "7/18編集後の解答");
+
+  const outOfRange = await handleAdminApi(request("/api/admin/cards/tenten0718/31", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ question: "範囲外", answer: "範囲外" }),
+  }), env);
+  assert.equal(outOfRange.status, 404);
+});
+
 test("admin can save, publish, and restore a four-choice quiz override", async () => {
   const DB = mockDb();
   const env = { ADMIN_PASSWORD: "test-only-secret", DB };
