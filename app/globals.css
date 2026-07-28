@@ -488,6 +488,23 @@ summary:focus-visible {
   gap: 9px;
 }
 
+.admin-create-lesson {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  border: 1px solid rgba(20, 86, 73, 0.16);
+  border-radius: 16px;
+  padding: 15px;
+  background: linear-gradient(135deg, #f0fff8, #fff8df);
+}
+
+.admin-create-lesson h3 { margin: 0; font-size: 1rem; }
+.admin-meta-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.admin-meta-fields label { display: grid; gap: 5px; color: #08715f; font-size: .72rem; font-weight: 800; }
+.admin-meta-fields input { width: 100%; min-height: 40px; border: 1px solid rgba(8,113,95,.22); border-radius: 10px; padding: 8px 10px; background: #fff; color: var(--ink); font: inherit; }
+
+@media (max-width: 560px) { .admin-meta-fields { grid-template-columns: 1fr; } }
+
 .admin-list-toolbar {
   display: flex;
   justify-content: flex-end;

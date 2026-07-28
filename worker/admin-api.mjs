@@ -1,5 +1,6 @@
 import {
   FLASHCARD_ADDITIONS_SCHEMA_SQL,
+  LESSON_TITLES_SCHEMA_SQL,
   FLASHCARD_OVERRIDES_LEGACY_COPY_SQL,
   FLASHCARD_OVERRIDES_SCHEMA_SQL,
   QUIZ_OVERRIDES_SCHEMA_SQL,
@@ -41,6 +42,7 @@ async function ensureSchema(db) {
     // 新規DBには旧テーブルがないため、移行処理だけを読み飛ばす。
   }
   await db.prepare(FLASHCARD_ADDITIONS_SCHEMA_SQL).run();
+  await db.prepare(LESSON_TITLES_SCHEMA_SQL).run();
   await db.prepare(QUIZ_OVERRIDES_SCHEMA_SQL).run();
 }
 
@@ -66,6 +68,7 @@ export async function handleAdminApi(request, env) {
   const isApiPath = url.pathname === "/api/cards"
     || url.pathname === "/api/admin/login"
     || url.pathname.startsWith("/api/admin/cards/")
+    || url.pathname === "/api/admin/lessons"
     || url.pathname.startsWith("/api/admin/quizzes/")
     || url.pathname === "/api/images"
     || url.pathname.startsWith("/api/images/");
@@ -122,6 +125,9 @@ export async function handleAdminApi(request, env) {
     const quizResult = await env.DB.prepare(
       "SELECT quiz_id, question_id, question, options_json, correct_index, explanation, deleted, updated_at FROM quiz_overrides ORDER BY quiz_id, question_id",
     ).all();
+    const lessonResult = await env.DB.prepare(
+      "SELECT lesson_id, lesson_date, teacher, title, video_url FROM lesson_titles ORDER BY lesson_date DESC, created_at DESC",
+    ).all();
     const overrides = [...(cardResult.results ?? []).map((row) => ({
       lessonId: row.lesson_id,
       id: row.card_id,
@@ -158,7 +164,33 @@ export async function handleAdminApi(request, env) {
         return [];
       }
     });
-    return json(request, { overrides, quizOverrides });
+    const lessons = (lessonResult.results ?? []).map((row) => ({
+      id: row.lesson_id,
+      date: row.lesson_date,
+      teacher: row.teacher,
+      title: row.title,
+      videoUrl: row.video_url,
+    }));
+    return json(request, { overrides, quizOverrides, lessons });
+  }
+
+  if (url.pathname === "/api/admin/lessons" && request.method === "POST") {
+    let body;
+    try { body = await request.json(); } catch { body = {}; }
+    const date = typeof body?.date === "string" ? body.date.trim() : "";
+    const teacher = typeof body?.teacher === "string" ? body.teacher.trim() : "";
+    const title = typeof body?.title === "string" ? body.title.trim() : "";
+    const videoUrl = typeof body?.videoUrl === "string" ? body.videoUrl.trim() : "";
+    if (!date || !teacher || !title) return json(request, { error: "日付・先生名・授業タイトルを入力してください。" }, 400);
+    if (date.length > 40 || teacher.length > 80 || title.length > 200 || videoUrl.length > 2000) {
+      return json(request, { error: "入力内容が長すぎます。" }, 400);
+    }
+    if (videoUrl && !/^https?:\/\//i.test(videoUrl)) return json(request, { error: "動画URLは https:// または http:// で入力してください。" }, 400);
+    const id = `lesson-${crypto.randomUUID()}`;
+    await env.DB.prepare(
+      "INSERT INTO lesson_titles (lesson_id, lesson_date, teacher, title, video_url) VALUES (?, ?, ?, ?, ?)",
+    ).bind(id, date, teacher, title, videoUrl).run();
+    return json(request, { ok: true, lesson: { id, date, teacher, title, videoUrl } });
   }
 
   const quizPath = parseQuizPath(url.pathname);

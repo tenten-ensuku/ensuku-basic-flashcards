@@ -27,6 +27,17 @@ CREATE TABLE IF NOT EXISTS flashcard_additions (
 )
 `;
 
+export const LESSON_TITLES_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS lesson_titles (
+  lesson_id TEXT PRIMARY KEY,
+  lesson_date TEXT NOT NULL,
+  teacher TEXT NOT NULL,
+  title TEXT NOT NULL,
+  video_url TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+`;
+
 export const QUIZ_OVERRIDES_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS quiz_overrides (
   quiz_id TEXT NOT NULL CHECK (quiz_id = 'basic-order-2026-07-16'),

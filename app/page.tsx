@@ -31,6 +31,7 @@ type LessonId = keyof typeof LESSONS;
 type Flashcard = { id: number; question: string; answer: string };
 type CardsByLesson = Record<LessonId, Flashcard[]>;
 type CardOverride = Flashcard & { lessonId: LessonId; deleted?: boolean };
+type AddedLesson = { id: string; date: string; teacher: string; title: string; videoUrl: string };
 type QuizQuestion = {
   id: number;
   chapter: string;
@@ -318,6 +319,8 @@ export default function Home() {
   const [adminNotice, setAdminNotice] = useState("");
   const [adminBusyCard, setAdminBusyCard] = useState<number | null>(null);
   const [adminPendingDelete, setAdminPendingDelete] = useState("");
+  const [addedLessons, setAddedLessons] = useState<AddedLesson[]>([]);
+  const [newLesson, setNewLesson] = useState({ date: "", teacher: "", title: "", videoUrl: "" });
   const [deletedCardIdsByLesson, setDeletedCardIdsByLesson] = useState<DeletedCardIdsByLesson>({
     tenten0718: [],
     tenten: [],
@@ -353,9 +356,9 @@ export default function Home() {
     fetch(adminApiPath("/api/cards"), { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("問題データを取得できませんでした。");
-        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[] }>;
+        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[] }>;
       })
-      .then(({ overrides = [], quizOverrides = [] }) => {
+      .then(({ overrides = [], quizOverrides = [], lessons = [] }) => {
         const nextCards = withOverrides(overrides);
         const nextQuiz = withQuizOverrides(quizOverrides);
         const nextDeletedCardIds: DeletedCardIdsByLesson = {
@@ -369,6 +372,7 @@ export default function Home() {
         setQuizBank(nextQuiz);
         setAdminQuizDrafts(nextQuiz);
         setDeletedQuizIds(quizOverrides.filter((item) => item.deleted).map((item) => item.id));
+        setAddedLessons(lessons);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -656,6 +660,28 @@ export default function Home() {
       setAdminNotice(`Q${String(added.id).padStart(2, "0")}を追加しました。`);
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "問題を追加できませんでした。");
+    }
+  };
+
+  const addLessonTitle = async () => {
+    setAdminError("");
+    setAdminNotice("");
+    setAdminBusyCard(0);
+    try {
+      const response = await fetch(adminApiPath("/api/admin/lessons"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newLesson),
+      });
+      const payload = await response.json() as { error?: string; lesson?: AddedLesson };
+      if (!response.ok || !payload.lesson) throw new Error(payload.error ?? "授業タイトルを追加できませんでした。");
+      setAddedLessons((current) => [...current, payload.lesson!].sort((a, b) => b.date.localeCompare(a.date, "ja")));
+      setNewLesson({ date: "", teacher: "", title: "", videoUrl: "" });
+      setAdminNotice("授業タイトルを追加しました。メニューの先頭に表示されます。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "授業タイトルを追加できませんでした。");
+    } finally {
+      setAdminBusyCard(null);
     }
   };
 
@@ -1062,6 +1088,22 @@ export default function Home() {
     setScreen("home");
   };
 
+  const renderAddedLessonPanel = (lesson: AddedLesson) => (
+    <section className="mode-panel mode-panel--collapsible" aria-label={`${lesson.date}　${lesson.teacher}　${lesson.title}`} key={lesson.id}>
+      <div className="lesson-summary">
+        <div className="lesson-summary__toggle lesson-summary__toggle--static">
+          <span className="lesson-summary__title">{lesson.date}　{lesson.teacher}　{lesson.title}</span>
+          <span className="review-count">問題を追加して準備</span>
+        </div>
+        {lesson.videoUrl && (
+          <a className="youtube-icon-button" href={lesson.videoUrl} target="_blank" rel="noreferrer" aria-label={`${lesson.title}の授業動画をYouTubeで見る`}>
+            <span className="youtube-play-mark" aria-hidden="true" />
+          </a>
+        )}
+      </div>
+    </section>
+  );
+
   const renderLessonPanel = (lessonId: LessonId) => {
     const lesson = LESSONS[lessonId];
     const lessonReviewIds = activeReviewCardIdsByLesson[lessonId];
@@ -1156,6 +1198,8 @@ export default function Home() {
       {screen === "home" && (
         <section className="screen screen--home" aria-labelledby="app-title">
           <HomeHeader />
+
+          {addedLessons.map(renderAddedLessonPanel)}
 
           {renderLessonPanel("tenten0718")}
 
@@ -1464,6 +1508,22 @@ export default function Home() {
           <p className="admin-lead">
             保存した内容は公開中の問題集へ反映されます。牌表記は「2234ｍ」「456p」のように入力してください。
           </p>
+
+          <section className="admin-create-lesson">
+            <div>
+              <p className="section-kicker">NEW LESSON</p>
+              <h3>新しい授業タイトルを追加</h3>
+            </div>
+            <div className="admin-meta-fields">
+              <label>日付<input value={newLesson.date} placeholder="例：7/25" onChange={(event) => setNewLesson({ ...newLesson, date: event.target.value })} /></label>
+              <label>先生名<input value={newLesson.teacher} placeholder="例：てんてん先生" onChange={(event) => setNewLesson({ ...newLesson, teacher: event.target.value })} /></label>
+              <label>授業タイトル<input value={newLesson.title} placeholder="例：何切る応用" onChange={(event) => setNewLesson({ ...newLesson, title: event.target.value })} /></label>
+              <label>動画URL（任意）<input type="url" value={newLesson.videoUrl} placeholder="https://youtu.be/..." onChange={(event) => setNewLesson({ ...newLesson, videoUrl: event.target.value })} /></label>
+            </div>
+            <button type="button" className="admin-save-button" onClick={addLessonTitle} disabled={adminBusyCard !== null || !newLesson.date.trim() || !newLesson.teacher.trim() || !newLesson.title.trim()}>
+              ＋ 授業タイトルを追加
+            </button>
+          </section>
 
           <div className="admin-lesson-tabs" role="tablist" aria-label="問題集を選択">
             {ADMIN_SECTIONS.map((section) => (
