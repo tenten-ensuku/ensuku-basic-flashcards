@@ -501,6 +501,9 @@ summary:focus-visible {
 
 .image-upload input { font-size: 0.75rem; }
 .image-upload span { color: #56877b; font-size: 0.7rem; font-weight: 600; }
+.image-upload--drop { border-style: dashed; cursor: copy; }
+.image-upload--drop:hover { border-color: var(--teal); background: #e6faf2; }
+.lesson-image-button { margin-left: 10px; color: #08715f; }
 
 .admin-card-editor {
   overflow: hidden;

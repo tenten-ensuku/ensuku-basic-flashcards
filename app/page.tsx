@@ -1139,6 +1139,9 @@ export default function Home() {
             >
               <span aria-hidden="true">☰</span> 問題一覧を見る
             </button>
+            <button className="text-button lesson-image-button" onClick={() => { setSelectedLesson(lessonId); setScreen("list"); }}>
+              <span aria-hidden="true">▧</span> 画像
+            </button>
           </div>
         )}
       </section>
@@ -1628,7 +1631,11 @@ export default function Home() {
                         onChange={(event) => updateAdminDraft(adminSection, card.id, "question", event.target.value)}
                         rows={4}
                       />
-                      <label className="image-upload">
+                      <label className="image-upload image-upload--drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
+                        event.preventDefault();
+                        const file = event.dataTransfer.files?.[0];
+                        if (file) void uploadCardImage(adminSection, card.id, "question", file);
+                      }}>
                         問題文に画像を追加
                         <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => {
                           const file = event.target.files?.[0];
@@ -1644,7 +1651,11 @@ export default function Home() {
                         onChange={(event) => updateAdminDraft(adminSection, card.id, "answer", event.target.value)}
                         rows={6}
                       />
-                      <label className="image-upload">
+                      <label className="image-upload image-upload--drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
+                        event.preventDefault();
+                        const file = event.dataTransfer.files?.[0];
+                        if (file) void uploadCardImage(adminSection, card.id, "answer", file);
+                      }}>
                         解答文に画像を追加
                         <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => {
                           const file = event.target.files?.[0];
