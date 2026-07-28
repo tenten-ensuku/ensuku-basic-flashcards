@@ -502,6 +502,14 @@ summary:focus-visible {
 .admin-meta-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .admin-meta-fields label { display: grid; gap: 5px; color: #08715f; font-size: .72rem; font-weight: 800; }
 .admin-meta-fields input { width: 100%; min-height: 40px; border: 1px solid rgba(8,113,95,.22); border-radius: 10px; padding: 8px 10px; background: #fff; color: var(--ink); font: inherit; }
+.lesson-resource-fields { display: grid; gap: 8px; }
+.lesson-resource-fields > label:first-child { display: grid; gap: 5px; color: #08715f; font-size: .72rem; font-weight: 800; }
+.lesson-resource-fields input[type="url"] { width: 100%; min-height: 40px; border: 1px solid rgba(8,113,95,.22); border-radius: 10px; padding: 8px 10px; background: #fff; }
+.lesson-resource-drafts { display: flex; flex-wrap: wrap; gap: 6px; }
+.lesson-resource-drafts span { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 5px 7px; background: #e5f8ef; color: #08715f; font-size: .72rem; font-weight: 800; }
+.lesson-resource-drafts button { border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; font: inherit; }
+.lesson-resource-icon { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid rgba(8,113,95,.18); border-radius: 11px; background: #fff; color: #08715f; font-weight: 900; text-decoration: none; }
+.lesson-resource-icon--image { color: #5b43bb; background: #f0ecff; }
 
 @media (max-width: 560px) { .admin-meta-fields { grid-template-columns: 1fr; } }
 

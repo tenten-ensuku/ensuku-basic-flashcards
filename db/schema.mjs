@@ -38,6 +38,18 @@ CREATE TABLE IF NOT EXISTS lesson_titles (
 )
 `;
 
+export const LESSON_RESOURCES_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS lesson_resources (
+  resource_id TEXT PRIMARY KEY,
+  lesson_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('image', 'link')),
+  label TEXT NOT NULL DEFAULT '',
+  url TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+`;
+
 export const QUIZ_OVERRIDES_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS quiz_overrides (
   quiz_id TEXT NOT NULL CHECK (quiz_id = 'basic-order-2026-07-16'),

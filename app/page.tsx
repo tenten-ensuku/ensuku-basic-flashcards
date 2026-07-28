@@ -32,6 +32,7 @@ type Flashcard = { id: number; question: string; answer: string };
 type CardsByLesson = Record<LessonId, Flashcard[]>;
 type CardOverride = Flashcard & { lessonId: LessonId; deleted?: boolean };
 type AddedLesson = { id: string; date: string; teacher: string; title: string; videoUrl: string };
+type LessonResource = { id: string; lessonId: string; kind: "image" | "link"; label: string; url: string };
 type QuizQuestion = {
   id: number;
   chapter: string;
@@ -320,6 +321,8 @@ export default function Home() {
   const [adminBusyCard, setAdminBusyCard] = useState<number | null>(null);
   const [adminPendingDelete, setAdminPendingDelete] = useState("");
   const [addedLessons, setAddedLessons] = useState<AddedLesson[]>([]);
+  const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
+  const [newLessonResources, setNewLessonResources] = useState<Array<Omit<LessonResource, "id" | "lessonId">>>([]);
   const [newLesson, setNewLesson] = useState({ date: "", teacher: "", title: "", videoUrl: "" });
   const [deletedCardIdsByLesson, setDeletedCardIdsByLesson] = useState<DeletedCardIdsByLesson>({
     tenten0718: [],
@@ -356,9 +359,9 @@ export default function Home() {
     fetch(adminApiPath("/api/cards"), { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("問題データを取得できませんでした。");
-        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[] }>;
+        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; resources?: LessonResource[] }>;
       })
-      .then(({ overrides = [], quizOverrides = [], lessons = [] }) => {
+      .then(({ overrides = [], quizOverrides = [], lessons = [], resources = [] }) => {
         const nextCards = withOverrides(overrides);
         const nextQuiz = withQuizOverrides(quizOverrides);
         const nextDeletedCardIds: DeletedCardIdsByLesson = {
@@ -373,6 +376,7 @@ export default function Home() {
         setAdminQuizDrafts(nextQuiz);
         setDeletedQuizIds(quizOverrides.filter((item) => item.deleted).map((item) => item.id));
         setAddedLessons(lessons);
+        setLessonResources(resources);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -671,12 +675,18 @@ export default function Home() {
       const response = await fetch(adminApiPath("/api/admin/lessons"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newLesson),
+        body: JSON.stringify({ ...newLesson, resources: newLessonResources }),
       });
       const payload = await response.json() as { error?: string; lesson?: AddedLesson };
       if (!response.ok || !payload.lesson) throw new Error(payload.error ?? "授業タイトルを追加できませんでした。");
       setAddedLessons((current) => [...current, payload.lesson!].sort((a, b) => b.date.localeCompare(a.date, "ja")));
+      setLessonResources((current) => [...current, ...newLessonResources.map((resource) => ({
+        ...resource,
+        id: `pending-${crypto.randomUUID()}`,
+        lessonId: payload.lesson!.id,
+      }))]);
       setNewLesson({ date: "", teacher: "", title: "", videoUrl: "" });
+      setNewLessonResources([]);
       setAdminNotice("授業タイトルを追加しました。メニューの先頭に表示されます。");
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "授業タイトルを追加できませんでした。");
@@ -708,6 +718,25 @@ export default function Home() {
       setAdminNotice("画像を追加しました。保存すると公開されます。");
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
+    }
+  };
+
+  const uploadLessonImage = async (file: File) => {
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
+      setAdminError("JPEG・PNG・WebP・GIF画像を選択してください。");
+      return;
+    }
+    setAdminBusyCard(0);
+    try {
+      const response = await fetch(adminApiPath("/api/images"), { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const payload = await response.json() as { error?: string; url?: string };
+      if (!response.ok || !payload.url) throw new Error(payload.error ?? "画像をアップロードできませんでした。");
+      setNewLessonResources((current) => [...current, { kind: "image", label: file.name, url: payload.url! }]);
+      setAdminNotice("授業資料の画像を追加しました。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
+    } finally {
+      setAdminBusyCard(null);
     }
   };
 
@@ -1100,6 +1129,11 @@ export default function Home() {
             <span className="youtube-play-mark" aria-hidden="true" />
           </a>
         )}
+        {lessonResources.filter((resource) => resource.lessonId === lesson.id).map((resource) => (
+          <a className={`lesson-resource-icon lesson-resource-icon--${resource.kind}`} href={resource.url} target="_blank" rel="noreferrer" aria-label={resource.kind === "image" ? `${resource.label || "画像資料"}を開く` : `${resource.label || "資料"}を開く`} title={resource.label || (resource.kind === "image" ? "画像資料を開く" : "資料を開く")} key={resource.id}>
+            {resource.kind === "image" ? "▧" : "↗"}
+          </a>
+        ))}
       </div>
     </section>
   );
@@ -1519,6 +1553,22 @@ export default function Home() {
               <label>先生名<input value={newLesson.teacher} placeholder="例：てんてん先生" onChange={(event) => setNewLesson({ ...newLesson, teacher: event.target.value })} /></label>
               <label>授業タイトル<input value={newLesson.title} placeholder="例：何切る応用" onChange={(event) => setNewLesson({ ...newLesson, title: event.target.value })} /></label>
               <label>動画URL（任意）<input type="url" value={newLesson.videoUrl} placeholder="https://youtu.be/..." onChange={(event) => setNewLesson({ ...newLesson, videoUrl: event.target.value })} /></label>
+            </div>
+            <div className="lesson-resource-fields">
+              <label>資料URL（任意）<input type="url" placeholder="GoogleドキュメントなどのURL" onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                const url = event.currentTarget.value.trim();
+                if (!url) return;
+                setNewLessonResources((current) => [...current, { kind: "link", label: "資料", url }]);
+                event.currentTarget.value = "";
+              }} /></label>
+              <label className="image-upload image-upload--drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files?.[0]; if (file) void uploadLessonImage(file); }}>
+                画像資料を追加
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadLessonImage(file); event.currentTarget.value = ""; }} />
+                <span>クリック・ドロップで追加</span>
+              </label>
+              {newLessonResources.length > 0 && <div className="lesson-resource-drafts">{newLessonResources.map((resource, index) => <span key={`${resource.url}-${index}`}>{resource.kind === "image" ? "▧ 画像" : "↗ 資料"}<button type="button" onClick={() => setNewLessonResources((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></span>)}</div>}
             </div>
             <button type="button" className="admin-save-button" onClick={addLessonTitle} disabled={adminBusyCard !== null || !newLesson.date.trim() || !newLesson.teacher.trim() || !newLesson.title.trim()}>
               ＋ 授業タイトルを追加

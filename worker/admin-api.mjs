@@ -1,6 +1,7 @@
 import {
   FLASHCARD_ADDITIONS_SCHEMA_SQL,
   LESSON_TITLES_SCHEMA_SQL,
+  LESSON_RESOURCES_SCHEMA_SQL,
   FLASHCARD_OVERRIDES_LEGACY_COPY_SQL,
   FLASHCARD_OVERRIDES_SCHEMA_SQL,
   QUIZ_OVERRIDES_SCHEMA_SQL,
@@ -43,6 +44,7 @@ async function ensureSchema(db) {
   }
   await db.prepare(FLASHCARD_ADDITIONS_SCHEMA_SQL).run();
   await db.prepare(LESSON_TITLES_SCHEMA_SQL).run();
+  await db.prepare(LESSON_RESOURCES_SCHEMA_SQL).run();
   await db.prepare(QUIZ_OVERRIDES_SCHEMA_SQL).run();
 }
 
@@ -128,6 +130,9 @@ export async function handleAdminApi(request, env) {
     const lessonResult = await env.DB.prepare(
       "SELECT lesson_id, lesson_date, teacher, title, video_url FROM lesson_titles ORDER BY lesson_date DESC, created_at DESC",
     ).all();
+    const resourceResult = await env.DB.prepare(
+      "SELECT resource_id, lesson_id, kind, label, url, sort_order FROM lesson_resources ORDER BY lesson_id, sort_order, created_at",
+    ).all();
     const overrides = [...(cardResult.results ?? []).map((row) => ({
       lessonId: row.lesson_id,
       id: row.card_id,
@@ -171,7 +176,14 @@ export async function handleAdminApi(request, env) {
       title: row.title,
       videoUrl: row.video_url,
     }));
-    return json(request, { overrides, quizOverrides, lessons });
+    const resources = (resourceResult.results ?? []).map((row) => ({
+      id: row.resource_id,
+      lessonId: row.lesson_id,
+      kind: row.kind,
+      label: row.label,
+      url: row.url,
+    }));
+    return json(request, { overrides, quizOverrides, lessons, resources });
   }
 
   if (url.pathname === "/api/admin/lessons" && request.method === "POST") {
@@ -181,6 +193,7 @@ export async function handleAdminApi(request, env) {
     const teacher = typeof body?.teacher === "string" ? body.teacher.trim() : "";
     const title = typeof body?.title === "string" ? body.title.trim() : "";
     const videoUrl = typeof body?.videoUrl === "string" ? body.videoUrl.trim() : "";
+    const resources = Array.isArray(body?.resources) ? body.resources : [];
     if (!date || !teacher || !title) return json(request, { error: "日付・先生名・授業タイトルを入力してください。" }, 400);
     if (date.length > 40 || teacher.length > 80 || title.length > 200 || videoUrl.length > 2000) {
       return json(request, { error: "入力内容が長すぎます。" }, 400);
@@ -190,6 +203,16 @@ export async function handleAdminApi(request, env) {
     await env.DB.prepare(
       "INSERT INTO lesson_titles (lesson_id, lesson_date, teacher, title, video_url) VALUES (?, ?, ?, ?, ?)",
     ).bind(id, date, teacher, title, videoUrl).run();
+    for (let index = 0; index < resources.length; index += 1) {
+      const resource = resources[index];
+      const kind = resource?.kind === "image" ? "image" : "link";
+      const url = typeof resource?.url === "string" ? resource.url.trim() : "";
+      const label = typeof resource?.label === "string" ? resource.label.trim() : "";
+      if (!url || !/^https?:\/\//i.test(url)) continue;
+      await env.DB.prepare(
+        "INSERT INTO lesson_resources (resource_id, lesson_id, kind, label, url, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+      ).bind(`resource-${crypto.randomUUID()}`, id, kind, label.slice(0, 160), url, index).run();
+    }
     return json(request, { ok: true, lesson: { id, date, teacher, title, videoUrl } });
   }
 
