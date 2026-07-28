@@ -197,6 +197,15 @@ function MahjongText({ text, links = true }: { text: string; links?: boolean }) 
   return (
     <>
       {tokenizeRichText(text).map((token, index) => {
+        if (token.type === "image") {
+          return (
+            <figure className="card-image" key={`image-${token.url}-${index}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={token.url} alt={token.alt || "カード画像"} loading="lazy" />
+              {token.alt ? <figcaption>{token.alt}</figcaption> : null}
+            </figure>
+          );
+        }
         if (token.type !== "link") return <MahjongTiles text={token.value} key={`text-${index}`} />;
         const content = (
           <>
@@ -581,11 +590,16 @@ export default function Home() {
   }, [activeQuizReviewIds, quizAnswers, quizIndex, quizQuestions, savedQuizSession, screen]);
 
   const openAdminLogin = () => {
-    setAdminPassword("");
     setAdminError("");
     setAdminNotice("");
     setAdminPendingDelete("");
-    setScreen("admin-login");
+    setAdminDrafts({
+      tenten0718: cardsByLesson.tenten0718.map((card) => ({ ...card })),
+      tenten: cardsByLesson.tenten.map((card) => ({ ...card })),
+      nejimaki: cardsByLesson.nejimaki.map((card) => ({ ...card })),
+    });
+    setAdminQuizDrafts(quizBank.map((question) => ({ ...question, options: [...question.options] })));
+    setScreen("admin");
   };
 
   const loginToAdmin = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -622,6 +636,52 @@ export default function Home() {
         card.id === cardId ? { ...card, [field]: value } : card,
       ),
     }));
+  };
+
+  const addAdminCard = async (lessonId: LessonId) => {
+    setAdminError("");
+    setAdminNotice("");
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/cards/${lessonId}`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json() as { error?: string; card?: Flashcard };
+      if (!response.ok || !payload.card) throw new Error(payload.error ?? "問題を追加できませんでした。");
+      const added = payload.card;
+      setCardsByLesson((current) => ({ ...current, [lessonId]: [...current[lessonId], added].sort((a, b) => a.id - b.id) }));
+      setAdminDrafts((current) => ({ ...current, [lessonId]: [...current[lessonId], added].sort((a, b) => a.id - b.id) }));
+      setAdminNotice(`Q${String(added.id).padStart(2, "0")}を追加しました。`);
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "問題を追加できませんでした。");
+    }
+  };
+
+  const uploadCardImage = async (lessonId: LessonId, cardId: number, field: "question" | "answer", file: File) => {
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
+      setAdminError("JPEG・PNG・WebP・GIF画像を選択してください。");
+      return;
+    }
+    setAdminError("");
+    try {
+      const response = await fetch(adminApiPath("/api/images"), {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      const payload = await response.json() as { error?: string; url?: string };
+      if (!response.ok || !payload.url) throw new Error(payload.error ?? "画像をアップロードできませんでした。");
+      setAdminDrafts((current) => ({
+        ...current,
+        [lessonId]: current[lessonId].map((card) => card.id === cardId
+          ? { ...card, [field]: `${card[field]}${card[field] ? "\\n" : ""}![画像](${payload.url})` }
+          : card),
+      }));
+      setAdminNotice("画像を追加しました。保存すると公開されます。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
+    }
   };
 
   const updateAdminQuizDraft = (
@@ -1542,6 +1602,9 @@ export default function Home() {
             </div>
           ) : (
             <div className="admin-card-list">
+              <div className="admin-list-toolbar">
+                <button type="button" className="admin-save-button" onClick={() => addAdminCard(adminSection)} disabled={adminBusyCard !== null}>＋ 問題を追加</button>
+              </div>
               {adminDrafts[adminSection].map((card, cardIndex) => {
                 const publishedCard = cardsByLesson[adminSection].find((item) => item.id === card.id);
                 const baseCard = LESSONS[adminSection].cards.find((item) => item.id === card.id);
@@ -1565,6 +1628,15 @@ export default function Home() {
                         onChange={(event) => updateAdminDraft(adminSection, card.id, "question", event.target.value)}
                         rows={4}
                       />
+                      <label className="image-upload">
+                        問題文に画像を追加
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void uploadCardImage(adminSection, card.id, "question", file);
+                          event.currentTarget.value = "";
+                        }} />
+                        <span>クリックして画像を選択</span>
+                      </label>
                       <label htmlFor={`answer-${adminSection}-${card.id}`}>解答文</label>
                       <textarea
                         id={`answer-${adminSection}-${card.id}`}
@@ -1572,6 +1644,15 @@ export default function Home() {
                         onChange={(event) => updateAdminDraft(adminSection, card.id, "answer", event.target.value)}
                         rows={6}
                       />
+                      <label className="image-upload">
+                        解答文に画像を追加
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void uploadCardImage(adminSection, card.id, "answer", file);
+                          event.currentTarget.value = "";
+                        }} />
+                        <span>クリックして画像を選択</span>
+                      </label>
                       <div className="admin-card-actions">
                         <button
                           type="button"

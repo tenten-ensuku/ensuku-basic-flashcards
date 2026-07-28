@@ -51,3 +51,10 @@ test("renders automatic links through the shared mahjong text component", () => 
   assert.match(page, /target="_blank"/);
   assert.match(css, /\.embedded-link--youtube/);
 });
+
+test("preserves markdown image tokens for card attachments", () => {
+  assert.deepEqual(tokenizeRichText("画像 ![牌姿](https://example.com/card.png)"), [
+    { type: "text", value: "画像 " },
+    { type: "image", alt: "牌姿", url: "https://example.com/card.png" },
+  ]);
+});

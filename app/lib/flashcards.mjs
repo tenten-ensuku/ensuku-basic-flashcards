@@ -1,4 +1,4 @@
-export const APP_VERSION = 23;
+export const APP_VERSION = 24;
 export const STORAGE_KEY = "ensuku-basic-flashcards-v4";
 export const LEGACY_STORAGE_KEY = "ensuku-basic-flashcards-v3";
 
@@ -179,7 +179,7 @@ export function mergeFlashcardOverrides(baseCards, overrides, lessonId) {
       .filter((override) => override.lessonId === lessonId)
       .map((override) => [override.id, override]),
   );
-  return baseCards.flatMap((card) => {
+  const merged = baseCards.flatMap((card) => {
     const override = lessonOverrides.get(card.id);
     if (override?.deleted) return [];
     if (override?.question && override?.answer) {
@@ -187,6 +187,12 @@ export function mergeFlashcardOverrides(baseCards, overrides, lessonId) {
     }
     return [{ ...card }];
   });
+  for (const override of lessonOverrides.values()) {
+    if (override.id > baseCards.length && override.added && !override.deleted && override.question && override.answer) {
+      merged.push({ id: override.id, question: override.question, answer: override.answer });
+    }
+  }
+  return merged.sort((left, right) => left.id - right.id);
 }
 
 /**

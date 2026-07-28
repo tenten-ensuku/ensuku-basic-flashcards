@@ -1,8 +1,9 @@
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/giu;
 const TRAILING_PUNCTUATION = /[.,!?;:。、，．！？；：）)\]】}」』〉》]+$/u;
+const IMAGE_PATTERN = /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/giu;
 
 /** @typedef {{ label: string, kind: "youtube" | "external" }} LinkMetadata */
-/** @typedef {{ type: "text", value: string } | ({ type: "link", url: string } & LinkMetadata)} RichTextToken */
+/** @typedef {{ type: "text", value: string } | ({ type: "link", url: string } & LinkMetadata) | { type: "image", url: string, alt: string }} RichTextToken */
 
 /** @returns {LinkMetadata} */
 export function linkLabel(url) {
@@ -29,19 +30,18 @@ export function tokenizeRichText(text) {
   /** @type {RichTextToken[]} */
   const tokens = [];
   let cursor = 0;
-  const pattern = new RegExp(URL_PATTERN.source, URL_PATTERN.flags);
+  const pattern = new RegExp(`(?:${IMAGE_PATTERN.source})|(?:${URL_PATTERN.source})`, "giu");
   let match;
-
   while ((match = pattern.exec(text)) !== null) {
-    if (match.index > cursor) {
-      tokens.push({ type: "text", value: text.slice(cursor, match.index) });
+    if (match.index > cursor) tokens.push({ type: "text", value: text.slice(cursor, match.index) });
+    if (match[1] !== undefined && match[2] !== undefined) {
+      tokens.push({ type: "image", alt: match[1], url: match[2] });
+    } else {
+      const trailing = match[0].match(TRAILING_PUNCTUATION)?.[0] ?? "";
+      const url = trailing ? match[0].slice(0, -trailing.length) : match[0];
+      tokens.push({ type: "link", url, ...linkLabel(url) });
+      if (trailing) tokens.push({ type: "text", value: trailing });
     }
-
-    const trailing = match[0].match(TRAILING_PUNCTUATION)?.[0] ?? "";
-    const url = trailing ? match[0].slice(0, -trailing.length) : match[0];
-    const metadata = linkLabel(url);
-    tokens.push({ type: "link", url, ...metadata });
-    if (trailing) tokens.push({ type: "text", value: trailing });
     cursor = pattern.lastIndex;
   }
 

@@ -1,4 +1,5 @@
 import {
+  FLASHCARD_ADDITIONS_SCHEMA_SQL,
   FLASHCARD_OVERRIDES_LEGACY_COPY_SQL,
   FLASHCARD_OVERRIDES_SCHEMA_SQL,
   QUIZ_OVERRIDES_SCHEMA_SQL,
@@ -7,21 +8,15 @@ import {
 const CARD_LIMITS = Object.freeze({ tenten0718: 30, tenten: 50, nejimaki: 50 });
 const LESSON_IDS = new Set(Object.keys(CARD_LIMITS));
 const QUIZ_ID = "basic-order-2026-07-16";
-const TRUSTED_ORIGINS = new Set([
-  "https://tenten-ensuku.github.io",
-  "https://ensuku-basic-flashcards.kobotenmitsu.chatgpt.site",
-]);
-
 function isTrustedOrigin(origin) {
   if (!origin) return true;
-  if (TRUSTED_ORIGINS.has(origin)) return true;
-  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  return /^https?:\/\//i.test(origin);
 }
 
 function corsHeaders(request) {
   const origin = request.headers.get("origin");
   const headers = new Headers({
-    "Access-Control-Allow-Headers": "content-type, x-admin-password",
+    "Access-Control-Allow-Headers": "content-type",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Cache-Control": "no-store",
     Vary: "Origin",
@@ -38,11 +33,6 @@ function json(request, value, status = 200) {
   return new Response(JSON.stringify(value), { status, headers });
 }
 
-function hasValidPassword(request, env, bodyPassword = "") {
-  const supplied = request.headers.get("x-admin-password") ?? bodyPassword;
-  return Boolean(env.ADMIN_PASSWORD) && supplied === env.ADMIN_PASSWORD;
-}
-
 async function ensureSchema(db) {
   await db.prepare(FLASHCARD_OVERRIDES_SCHEMA_SQL).run();
   try {
@@ -50,6 +40,7 @@ async function ensureSchema(db) {
   } catch {
     // 新規DBには旧テーブルがないため、移行処理だけを読み飛ばす。
   }
+  await db.prepare(FLASHCARD_ADDITIONS_SCHEMA_SQL).run();
   await db.prepare(QUIZ_OVERRIDES_SCHEMA_SQL).run();
 }
 
@@ -58,7 +49,7 @@ function parseCardPath(pathname) {
   if (!match) return null;
   const limit = CARD_LIMITS[match[1]];
   const cardId = Number(match[2]);
-  if (!limit || !Number.isInteger(cardId) || cardId < 1 || cardId > limit) return null;
+  if (!limit || !Number.isInteger(cardId) || cardId < 1 || cardId > 10000) return null;
   return { lessonId: match[1], cardId, deleteProblem: Boolean(match[3]) };
 }
 
@@ -75,7 +66,9 @@ export async function handleAdminApi(request, env) {
   const isApiPath = url.pathname === "/api/cards"
     || url.pathname === "/api/admin/login"
     || url.pathname.startsWith("/api/admin/cards/")
-    || url.pathname.startsWith("/api/admin/quizzes/");
+    || url.pathname.startsWith("/api/admin/quizzes/")
+    || url.pathname === "/api/images"
+    || url.pathname.startsWith("/api/images/");
   if (!isApiPath) return null;
 
   if (!isTrustedOrigin(request.headers.get("origin"))) {
@@ -86,19 +79,32 @@ export async function handleAdminApi(request, env) {
   }
 
   if (url.pathname === "/api/admin/login" && request.method === "POST") {
-    if (!env.ADMIN_PASSWORD) {
-      return json(request, { error: "管理機能が設定されていません。" }, 503);
+    return json(request, { ok: true, publicEditor: true });
+  }
+
+  if (url.pathname === "/api/images" && request.method === "POST") {
+    if (!env.MEDIA) return json(request, { error: "画像保存を利用できません。" }, 503);
+    const type = request.headers.get("content-type")?.split(";", 1)[0].toLowerCase() ?? "";
+    const extensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
+    const extension = extensions[type];
+    const bytes = await request.arrayBuffer();
+    if (!extension || !bytes.byteLength || bytes.byteLength > 8 * 1024 * 1024) {
+      return json(request, { error: "PNG・JPEG・WebP・GIFの8MB以下の画像を選んでください。" }, 400);
     }
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return json(request, { error: "入力内容を確認してください。" }, 400);
-    }
-    if (!hasValidPassword(request, env, typeof body?.password === "string" ? body.password : "")) {
-      return json(request, { error: "パスワードが違います。" }, 401);
-    }
-    return json(request, { ok: true });
+    const key = `card-images/${crypto.randomUUID()}.${extension}`;
+    await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: type } });
+    return json(request, { ok: true, url: `${url.origin}/api/images/${key}` });
+  }
+
+  const imageMatch = url.pathname.match(/^\/api\/images\/(card-images\/[a-f0-9-]+\.(?:jpg|png|webp|gif))$/i);
+  if (imageMatch && request.method === "GET") {
+    if (!env.MEDIA) return json(request, { error: "画像保存を利用できません。" }, 503);
+    const object = await env.MEDIA.get(imageMatch[1]);
+    if (!object) return json(request, { error: "画像が見つかりません。" }, 404);
+    const headers = corsHeaders(request);
+    headers.set("Content-Type", object.httpMetadata?.contentType ?? "application/octet-stream");
+    headers.set("Cache-Control", "public, max-age=31536000, immutable");
+    return new Response(object.body, { headers });
   }
 
   if (!env.DB) {
@@ -110,17 +116,28 @@ export async function handleAdminApi(request, env) {
     const cardResult = await env.DB.prepare(
       "SELECT lesson_id, card_id, question, answer, deleted, updated_at FROM flashcard_overrides_v2 ORDER BY lesson_id, card_id",
     ).all();
+    const additionResult = await env.DB.prepare(
+      "SELECT lesson_id, card_id, question, answer, deleted, updated_at FROM flashcard_additions ORDER BY lesson_id, card_id",
+    ).all();
     const quizResult = await env.DB.prepare(
       "SELECT quiz_id, question_id, question, options_json, correct_index, explanation, deleted, updated_at FROM quiz_overrides ORDER BY quiz_id, question_id",
     ).all();
-    const overrides = (cardResult.results ?? []).map((row) => ({
+    const overrides = [...(cardResult.results ?? []).map((row) => ({
       lessonId: row.lesson_id,
       id: row.card_id,
       question: row.question,
       answer: row.answer,
       ...(row.deleted === 1 ? { deleted: true } : {}),
       updatedAt: row.updated_at,
-    }));
+    })), ...(additionResult.results ?? []).map((row) => ({
+      lessonId: row.lesson_id,
+      id: row.card_id,
+      question: row.question,
+      answer: row.answer,
+      added: true,
+      ...(row.deleted === 1 ? { deleted: true } : {}),
+      updatedAt: row.updated_at,
+    }))];
     const quizOverrides = (quizResult.results ?? []).flatMap((row) => {
       try {
         const options = JSON.parse(row.options_json);
@@ -146,9 +163,6 @@ export async function handleAdminApi(request, env) {
 
   const quizPath = parseQuizPath(url.pathname);
   if (quizPath) {
-    if (!hasValidPassword(request, env)) {
-      return json(request, { error: "管理パスワードを確認してください。" }, 401);
-    }
     if (quizPath.deleteProblem) {
       if (request.method !== "DELETE") {
         return json(request, { error: "対応していない操作です。" }, 405);
@@ -225,26 +239,41 @@ export async function handleAdminApi(request, env) {
     return json(request, { error: "対応していない操作です。" }, 405);
   }
 
+  const cardCollection = url.pathname.match(/^\/api\/admin\/cards\/([^/]+)$/);
+  if (cardCollection && request.method === "POST" && LESSON_IDS.has(cardCollection[1])) {
+    let body;
+    try { body = await request.json(); } catch { body = {}; }
+    const question = typeof body?.question === "string" ? body.question.trim() : "新しい問題";
+    const answer = typeof body?.answer === "string" ? body.answer.trim() : "解答を入力してください。";
+    if (!question || !answer) return json(request, { error: "問題文と解答文を入力してください。" }, 400);
+    if (question.length > 2000 || answer.length > 5000) return json(request, { error: "文章が長すぎます。" }, 400);
+    const next = await env.DB.prepare(
+      "SELECT COALESCE(MAX(card_id), 50) + 1 AS next_id FROM flashcard_additions WHERE lesson_id = ?",
+    ).bind(cardCollection[1]).all();
+    const cardId = Math.max(CARD_LIMITS[cardCollection[1]] + 1, Number(next.results?.[0]?.next_id ?? CARD_LIMITS[cardCollection[1]] + 1));
+    await env.DB.prepare(
+      "INSERT INTO flashcard_additions (lesson_id, card_id, question, answer) VALUES (?, ?, ?, ?)",
+    ).bind(cardCollection[1], cardId, question, answer).run();
+    return json(request, { ok: true, card: { id: cardId, question, answer, added: true } });
+  }
+
   const cardPath = parseCardPath(url.pathname);
   if (!cardPath || !LESSON_IDS.has(cardPath.lessonId)) {
     return json(request, { error: "対象の問題が見つかりません。" }, 404);
-  }
-  if (!hasValidPassword(request, env)) {
-    return json(request, { error: "管理パスワードを確認してください。" }, 401);
   }
 
   if (cardPath.deleteProblem) {
     if (request.method !== "DELETE") {
       return json(request, { error: "対応していない操作です。" }, 405);
     }
-    const statement = env.DB.prepare(`
+    const statement = env.DB.prepare(cardPath.cardId > CARD_LIMITS[cardPath.lessonId] ? `
+      INSERT INTO flashcard_additions (lesson_id, card_id, question, answer, deleted, updated_at)
+      VALUES (?, ?, '', '', 1, CURRENT_TIMESTAMP)
+      ON CONFLICT(lesson_id, card_id) DO UPDATE SET deleted = 1, updated_at = CURRENT_TIMESTAMP
+    ` : `
       INSERT INTO flashcard_overrides_v2 (lesson_id, card_id, question, answer, deleted, updated_at)
       VALUES (?, ?, '', '', 1, CURRENT_TIMESTAMP)
-      ON CONFLICT(lesson_id, card_id) DO UPDATE SET
-        question = '',
-        answer = '',
-        deleted = 1,
-        updated_at = CURRENT_TIMESTAMP
+      ON CONFLICT(lesson_id, card_id) DO UPDATE SET question = '', answer = '', deleted = 1, updated_at = CURRENT_TIMESTAMP
     `);
     await statement.bind(cardPath.lessonId, cardPath.cardId).run();
     return json(request, { ok: true, deleted: true });
@@ -265,7 +294,11 @@ export async function handleAdminApi(request, env) {
     if (question.length > 2000 || answer.length > 5000) {
       return json(request, { error: "文章が長すぎます。" }, 400);
     }
-    const statement = env.DB.prepare(`
+    const statement = env.DB.prepare(cardPath.cardId > CARD_LIMITS[cardPath.lessonId] ? `
+      INSERT INTO flashcard_additions (lesson_id, card_id, question, answer, deleted, updated_at)
+      VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
+      ON CONFLICT(lesson_id, card_id) DO UPDATE SET question = excluded.question, answer = excluded.answer, deleted = 0, updated_at = CURRENT_TIMESTAMP
+    ` : `
       INSERT INTO flashcard_overrides_v2 (lesson_id, card_id, question, answer, deleted, updated_at)
       VALUES (?, ?, ?, ?, 0, CURRENT_TIMESTAMP)
       ON CONFLICT(lesson_id, card_id) DO UPDATE SET
@@ -279,12 +312,13 @@ export async function handleAdminApi(request, env) {
   }
 
   if (request.method === "DELETE") {
-    const statement = env.DB.prepare(
-      "DELETE FROM flashcard_overrides_v2 WHERE lesson_id = ? AND card_id = ?",
-    );
+    const statement = env.DB.prepare(cardPath.cardId > CARD_LIMITS[cardPath.lessonId]
+      ? "DELETE FROM flashcard_additions WHERE lesson_id = ? AND card_id = ?"
+      : "DELETE FROM flashcard_overrides_v2 WHERE lesson_id = ? AND card_id = ?");
     await statement.bind(cardPath.lessonId, cardPath.cardId).run();
     return json(request, { ok: true });
   }
+
 
   return json(request, { error: "対応していない操作です。" }, 405);
 }
