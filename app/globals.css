@@ -163,6 +163,23 @@ summary:focus-visible {
     linear-gradient(135deg, #f5efff 0%, #ddd4ff 48%, #ffd1b8 100%);
 }
 
+.quiz-launch-panel.mode-panel--collapsible {
+  display: block;
+  padding: 10px;
+}
+
+.quiz-launch-panel.mode-panel--collapsible.mode-panel--open {
+  padding: 18px;
+}
+
+.quiz-launch-content {
+  display: grid;
+  gap: 18px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(92, 70, 176, 0.16);
+}
+
 .quiz-launch-panel::after {
   position: absolute;
   top: -32px;
@@ -705,8 +722,86 @@ summary:focus-visible {
   padding: 18px;
 }
 
+.mode-panel--collapsible {
+  padding: 10px;
+}
+
+.mode-panel--collapsible.mode-panel--open {
+  padding: 18px;
+}
+
 .mode-panel + .mode-panel {
   margin-top: 14px;
+}
+
+.lesson-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+}
+
+.lesson-summary__toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+  min-height: 54px;
+  border: 0;
+  border-radius: 16px;
+  padding: 8px 10px 8px 14px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.lesson-summary__toggle:hover,
+.lesson-summary__toggle:focus-visible {
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.lesson-summary__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: clamp(0.96rem, 3.2vw, 1.2rem);
+  font-weight: 900;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lesson-summary__chevron {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(8, 113, 95, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.62);
+  color: #08715f;
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.lesson-summary .youtube-icon-button {
+  flex-basis: 44px;
+  width: 44px;
+  height: 40px;
+}
+
+.lesson-summary .review-count {
+  white-space: nowrap;
+}
+
+.mode-panel__content {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(20, 86, 73, 0.1);
 }
 
 .lesson-list-button {
@@ -2086,7 +2181,7 @@ summary:focus-visible {
     padding-inline: 28px;
   }
 
-  .quiz-launch-panel {
+  .quiz-launch-content {
     grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
     align-items: center;
   }

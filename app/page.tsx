@@ -41,6 +41,7 @@ type QuizQuestion = {
 };
 type QuizOverride = Omit<QuizQuestion, "chapter"> & { quizId: string; deleted?: boolean };
 type AdminSection = LessonId | "quiz";
+type HomeSectionId = LessonId | "quiz";
 type QuizAnswer = {
   questionId: number;
   selectedIndex: number;
@@ -320,6 +321,7 @@ export default function Home() {
   });
   const [lastSession, setLastSession] = useState<LastSession | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<LessonId>("tenten0718");
+  const [openHomeSection, setOpenHomeSection] = useState<HomeSectionId | null>(null);
   const [sessionMode, setSessionMode] = useState<SessionMode>("all");
   const [sessionCards, setSessionCards] = useState<Flashcard[]>([]);
   const [cardIndex, setCardIndex] = useState(0);
@@ -1002,71 +1004,83 @@ export default function Home() {
   const renderLessonPanel = (lessonId: LessonId) => {
     const lesson = LESSONS[lessonId];
     const lessonReviewIds = activeReviewCardIdsByLesson[lessonId];
+    const isOpen = openHomeSection === lessonId;
+    const contentId = `lesson-content-${lessonId}`;
     return (
-      <section className="mode-panel" aria-label={lesson.label} key={lessonId}>
-        <div className="section-heading">
-          <div>
-            <div className="lesson-title-row">
-              <h2><LessonTitle label={lesson.label} /></h2>
-              {lesson.videoUrl && (
-                <a
-                  className="youtube-icon-button"
-                  href={lesson.videoUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`${lesson.label}の授業動画をYouTubeで見る`}
-                  title="授業動画をYouTubeで見る"
-                >
-                  <span className="youtube-play-mark" aria-hidden="true" />
-                </a>
-              )}
-            </div>
-          </div>
-          <span className="review-count">
-            解き直し <strong>{lessonReviewIds.length}</strong>枚
-          </span>
+      <section className={`mode-panel mode-panel--collapsible ${isOpen ? "mode-panel--open" : ""}`} aria-label={lesson.label} key={lessonId}>
+        <div className="lesson-summary">
+          <button
+            className="lesson-summary__toggle"
+            type="button"
+            onClick={() => setOpenHomeSection(isOpen ? null : lessonId)}
+            aria-expanded={isOpen}
+            aria-controls={contentId}
+            data-testid={`toggle-lesson-${lessonId}`}
+          >
+            <span className="lesson-summary__title">{lesson.label}</span>
+            <span className="review-count">
+              解き直し <strong>{lessonReviewIds.length}</strong>枚
+            </span>
+            <span className="lesson-summary__chevron" aria-hidden="true">{isOpen ? "⌃" : "⌄"}</span>
+          </button>
+          {lesson.videoUrl && (
+            <a
+              className="youtube-icon-button"
+              href={lesson.videoUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`${lesson.label}の授業動画をYouTubeで見る`}
+              title="授業動画をYouTubeで見る"
+            >
+              <span className="youtube-play-mark" aria-hidden="true" />
+            </a>
+          )}
         </div>
 
-        <div className="mode-grid">
-          <button
-            className="mode-card mode-card--primary"
-            onClick={() => startSession(lessonId, "all")}
-            data-testid={`start-all-${lessonId}`}
-          >
-            <span className="mode-card__number">{cardsByLesson[lessonId].length}</span>
-            <span>
-              <strong>全{cardsByLesson[lessonId].length}問</strong>
-              <small>講義内容を一周する</small>
-            </span>
-            <span className="mode-card__arrow" aria-hidden="true">→</span>
-          </button>
-          <button
-            className="mode-card mode-card--review"
-            onClick={() => startSession(lessonId, "review")}
-            disabled={lessonReviewIds.length === 0}
-            data-testid={`start-review-${lessonId}`}
-          >
-            <span className="mode-card__number">↺</span>
-            <span>
-              <strong>解き直しカード</strong>
-              <small>
-                {lessonReviewIds.length
-                  ? `${lessonReviewIds.length}枚を解き直す`
-                  : "回答後に追加できます"}
-              </small>
-            </span>
-            <span className="mode-card__arrow" aria-hidden="true">→</span>
-          </button>
-        </div>
-        <button
-          className="text-button lesson-list-button"
-          onClick={() => {
-            setSelectedLesson(lessonId);
-            setScreen("list");
-          }}
-        >
-          <span aria-hidden="true">☰</span> 問題一覧を見る
-        </button>
+        {isOpen && (
+          <div className="mode-panel__content" id={contentId}>
+            <div className="mode-grid">
+              <button
+                className="mode-card mode-card--primary"
+                onClick={() => startSession(lessonId, "all")}
+                data-testid={`start-all-${lessonId}`}
+              >
+                <span className="mode-card__number">{cardsByLesson[lessonId].length}</span>
+                <span>
+                  <strong>全{cardsByLesson[lessonId].length}問</strong>
+                  <small>講義内容を一周する</small>
+                </span>
+                <span className="mode-card__arrow" aria-hidden="true">→</span>
+              </button>
+              <button
+                className="mode-card mode-card--review"
+                onClick={() => startSession(lessonId, "review")}
+                disabled={lessonReviewIds.length === 0}
+                data-testid={`start-review-${lessonId}`}
+              >
+                <span className="mode-card__number">↺</span>
+                <span>
+                  <strong>解き直しカード</strong>
+                  <small>
+                    {lessonReviewIds.length
+                      ? `${lessonReviewIds.length}枚を解き直す`
+                      : "回答後に追加できます"}
+                  </small>
+                </span>
+                <span className="mode-card__arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
+            <button
+              className="text-button lesson-list-button"
+              onClick={() => {
+                setSelectedLesson(lessonId);
+                setScreen("list");
+              }}
+            >
+              <span aria-hidden="true">☰</span> 問題一覧を見る
+            </button>
+          </div>
+        )}
       </section>
     );
   };
@@ -1081,63 +1095,82 @@ export default function Home() {
 
           {renderLessonPanel("tenten0718")}
 
-          <section className="quiz-launch-panel" aria-labelledby="quiz-launch-title">
-            <div className="quiz-launch-copy">
-              <div className="quiz-launch-meta">
-                <span>4択 {quizBank.length}問</span>
-                <span>解き直し {activeQuizReviewIds.length}問</span>
-                {savedQuizSession && (
-                  <span>回答済み {savedQuizSession.answers.length} / {savedQuizSession.questionIds.length}</span>
-                )}
-              </div>
-              <div className="lesson-title-row">
-                <h2 id="quiz-launch-title">{QUIZ_LESSON.label}</h2>
-                <a
-                  className="youtube-icon-button"
-                  href={QUIZ_LESSON.videoUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`${QUIZ_LESSON.label}の授業動画をYouTubeで見る`}
-                  title="授業動画をYouTubeで見る"
-                >
-                  <span className="youtube-play-mark" aria-hidden="true" />
-                </a>
-              </div>
-              <h3>{QUIZ_LESSON.title}</h3>
-            </div>
-            <div className="quiz-launch-actions">
-              {savedQuizSession && (
-                <button className="quiz-resume-button" onClick={resumeQuiz} data-testid="resume-basic-order-quiz">
-                  <span aria-hidden="true">▶</span>
-                  <span>
-                    <strong>途中から再開</strong>
-                    <small>Q{String(quizQuestionNumber(savedQuizSession.questionIds[savedQuizSession.currentIndex])).padStart(2, "0")}・回答済み {savedQuizSession.answers.length}問</small>
-                  </span>
-                  <span aria-hidden="true">→</span>
-                </button>
-              )}
-              <button className="quiz-start-button" onClick={() => startQuiz()} data-testid="start-basic-order-quiz">
-                <span className="quiz-start-button__count">{quizBank.length}</span>
-                <span>
-                  <strong>{savedQuizSession ? "最初から始める" : "クイズを始める"}</strong>
-                  <small>全{quizBank.length}問</small>
+          <section
+            className={`quiz-launch-panel mode-panel--collapsible ${openHomeSection === "quiz" ? "mode-panel--open" : ""}`}
+            aria-labelledby="quiz-launch-title"
+          >
+            <div className="lesson-summary lesson-summary--quiz">
+              <button
+                className="lesson-summary__toggle"
+                type="button"
+                onClick={() => setOpenHomeSection(openHomeSection === "quiz" ? null : "quiz")}
+                aria-expanded={openHomeSection === "quiz"}
+                aria-controls="quiz-launch-content"
+                data-testid="toggle-quiz-section"
+              >
+                <span className="lesson-summary__title" id="quiz-launch-title">{QUIZ_LESSON.label}　{QUIZ_LESSON.title}</span>
+                <span className="review-count">
+                  解き直し <strong>{activeQuizReviewIds.length}</strong>問
                 </span>
-                <span aria-hidden="true">→</span>
+                <span className="lesson-summary__chevron" aria-hidden="true">{openHomeSection === "quiz" ? "⌃" : "⌄"}</span>
               </button>
-              <div className="quiz-secondary-actions">
-                <button
-                  className="quiz-review-button"
-                  onClick={() => startQuiz(quizBank.filter((question) => quizReviewSet.has(question.id)))}
-                  disabled={activeQuizReviewIds.length === 0}
-                  data-testid="start-quiz-review"
-                >
-                  ↺ 解き直し {activeQuizReviewIds.length}問
-                </button>
-                <button className="quiz-list-button" onClick={() => setScreen("quiz-list")} data-testid="open-quiz-list">
-                  ☰ クイズ問題一覧
-                </button>
-              </div>
+              <a
+                className="youtube-icon-button"
+                href={QUIZ_LESSON.videoUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`${QUIZ_LESSON.label}の授業動画をYouTubeで見る`}
+                title="授業動画をYouTubeで見る"
+              >
+                <span className="youtube-play-mark" aria-hidden="true" />
+              </a>
             </div>
+            {openHomeSection === "quiz" && (
+              <div className="quiz-launch-content" id="quiz-launch-content">
+                <div className="quiz-launch-copy">
+                  <div className="quiz-launch-meta">
+                    <span>4択 {quizBank.length}問</span>
+                    <span>解き直し {activeQuizReviewIds.length}問</span>
+                    {savedQuizSession && (
+                      <span>回答済み {savedQuizSession.answers.length} / {savedQuizSession.questionIds.length}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="quiz-launch-actions">
+                  {savedQuizSession && (
+                    <button className="quiz-resume-button" onClick={resumeQuiz} data-testid="resume-basic-order-quiz">
+                      <span aria-hidden="true">▶</span>
+                      <span>
+                        <strong>途中から再開</strong>
+                        <small>Q{String(quizQuestionNumber(savedQuizSession.questionIds[savedQuizSession.currentIndex])).padStart(2, "0")}・回答済み {savedQuizSession.answers.length}問</small>
+                      </span>
+                      <span aria-hidden="true">→</span>
+                    </button>
+                  )}
+                  <button className="quiz-start-button" onClick={() => startQuiz()} data-testid="start-basic-order-quiz">
+                    <span className="quiz-start-button__count">{quizBank.length}</span>
+                    <span>
+                      <strong>{savedQuizSession ? "最初から始める" : "クイズを始める"}</strong>
+                      <small>全{quizBank.length}問</small>
+                    </span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                  <div className="quiz-secondary-actions">
+                    <button
+                      className="quiz-review-button"
+                      onClick={() => startQuiz(quizBank.filter((question) => quizReviewSet.has(question.id)))}
+                      disabled={activeQuizReviewIds.length === 0}
+                      data-testid="start-quiz-review"
+                    >
+                      ↺ 解き直し {activeQuizReviewIds.length}問
+                    </button>
+                    <button className="quiz-list-button" onClick={() => setScreen("quiz-list")} data-testid="open-quiz-list">
+                      ☰ クイズ問題一覧
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
           {renderLessonPanel("tenten")}
