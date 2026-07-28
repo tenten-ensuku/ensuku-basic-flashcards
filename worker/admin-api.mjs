@@ -2,6 +2,7 @@ import {
   FLASHCARD_ADDITIONS_SCHEMA_SQL,
   LESSON_TITLES_SCHEMA_SQL,
   LESSON_RESOURCES_SCHEMA_SQL,
+  CUSTOM_LESSON_CARDS_SCHEMA_SQL,
   FLASHCARD_OVERRIDES_LEGACY_COPY_SQL,
   FLASHCARD_OVERRIDES_SCHEMA_SQL,
   QUIZ_OVERRIDES_SCHEMA_SQL,
@@ -45,6 +46,7 @@ async function ensureSchema(db) {
   await db.prepare(FLASHCARD_ADDITIONS_SCHEMA_SQL).run();
   await db.prepare(LESSON_TITLES_SCHEMA_SQL).run();
   await db.prepare(LESSON_RESOURCES_SCHEMA_SQL).run();
+  await db.prepare(CUSTOM_LESSON_CARDS_SCHEMA_SQL).run();
   await db.prepare(QUIZ_OVERRIDES_SCHEMA_SQL).run();
 }
 
@@ -71,6 +73,7 @@ export async function handleAdminApi(request, env) {
     || url.pathname === "/api/admin/login"
     || url.pathname.startsWith("/api/admin/cards/")
     || url.pathname === "/api/admin/lessons"
+    || url.pathname.startsWith("/api/admin/lessons/")
     || url.pathname.startsWith("/api/admin/quizzes/")
     || url.pathname === "/api/images"
     || url.pathname.startsWith("/api/images/");
@@ -133,6 +136,9 @@ export async function handleAdminApi(request, env) {
     const resourceResult = await env.DB.prepare(
       "SELECT resource_id, lesson_id, kind, label, url, sort_order FROM lesson_resources ORDER BY lesson_id, sort_order, created_at",
     ).all();
+    const customCardResult = await env.DB.prepare(
+      "SELECT lesson_id, card_id, question, answer FROM custom_lesson_cards ORDER BY lesson_id, card_id",
+    ).all();
     const overrides = [...(cardResult.results ?? []).map((row) => ({
       lessonId: row.lesson_id,
       id: row.card_id,
@@ -183,7 +189,13 @@ export async function handleAdminApi(request, env) {
       label: row.label,
       url: row.url,
     }));
-    return json(request, { overrides, quizOverrides, lessons, resources });
+    const customCards = (customCardResult.results ?? []).map((row) => ({
+      lessonId: row.lesson_id,
+      id: row.card_id,
+      question: row.question,
+      answer: row.answer,
+    }));
+    return json(request, { overrides, quizOverrides, lessons, resources, customCards });
   }
 
   if (url.pathname === "/api/admin/lessons" && request.method === "POST") {
@@ -214,6 +226,41 @@ export async function handleAdminApi(request, env) {
       ).bind(`resource-${crypto.randomUUID()}`, id, kind, label.slice(0, 160), url, index).run();
     }
     return json(request, { ok: true, lesson: { id, date, teacher, title, videoUrl } });
+  }
+
+  const customCardPath = url.pathname.match(/^\/api\/admin\/lessons\/(lesson-[a-f0-9-]+)\/cards(?:\/(\d+))?$/i);
+  if (customCardPath) {
+    const lessonId = customCardPath[1];
+    const cardId = customCardPath[2] ? Number(customCardPath[2]) : 0;
+    if (request.method === "POST" && !cardId) {
+      const next = await env.DB.prepare(
+        "SELECT COALESCE(MAX(card_id), 0) + 1 AS next_id FROM custom_lesson_cards WHERE lesson_id = ?",
+      ).bind(lessonId).all();
+      const nextId = Number(next.results?.[0]?.next_id ?? 1);
+      await env.DB.prepare(
+        "INSERT INTO custom_lesson_cards (lesson_id, card_id, question, answer) VALUES (?, ?, ?, ?)",
+      ).bind(lessonId, nextId, "新しい問題", "解答を入力してください。").run();
+      return json(request, { ok: true, card: { id: nextId, question: "新しい問題", answer: "解答を入力してください。" } });
+    }
+    if (!cardId) return json(request, { error: "問題番号が不正です。" }, 404);
+    if (request.method === "PUT") {
+      let body;
+      try { body = await request.json(); } catch { body = {}; }
+      const question = typeof body?.question === "string" ? body.question.trim() : "";
+      const answer = typeof body?.answer === "string" ? body.answer.trim() : "";
+      if (!question || !answer) return json(request, { error: "問題文と解答文を入力してください。" }, 400);
+      await env.DB.prepare(`
+        INSERT INTO custom_lesson_cards (lesson_id, card_id, question, answer, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(lesson_id, card_id) DO UPDATE SET question = excluded.question, answer = excluded.answer, updated_at = CURRENT_TIMESTAMP
+      `).bind(lessonId, cardId, question, answer).run();
+      return json(request, { ok: true, card: { id: cardId, question, answer } });
+    }
+    if (request.method === "DELETE") {
+      await env.DB.prepare("DELETE FROM custom_lesson_cards WHERE lesson_id = ? AND card_id = ?").bind(lessonId, cardId).run();
+      return json(request, { ok: true });
+    }
+    return json(request, { error: "対応していない操作です。" }, 405);
   }
 
   const quizPath = parseQuizPath(url.pathname);

@@ -510,6 +510,15 @@ summary:focus-visible {
 .lesson-resource-drafts button { border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; font: inherit; }
 .lesson-resource-icon { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid rgba(8,113,95,.18); border-radius: 11px; background: #fff; color: #08715f; font-weight: 900; text-decoration: none; }
 .lesson-resource-icon--image { color: #5b43bb; background: #f0ecff; }
+.admin-custom-lessons { display: grid; gap: 10px; margin: 18px 0; }
+.admin-custom-lessons h3 { margin: 0; font-size: 1rem; }
+.admin-custom-lesson { overflow: hidden; border: 1px solid rgba(20,86,73,.16); border-radius: 14px; background: #fff; }
+.admin-custom-lesson summary { display: flex; justify-content: space-between; gap: 8px; padding: 12px; cursor: pointer; color: var(--ink); font-size: .82rem; font-weight: 800; }
+.admin-custom-lesson > div { display: grid; gap: 10px; padding: 12px; border-top: 1px solid rgba(20,86,73,.1); }
+.custom-card-edit { display: grid; gap: 7px; border: 1px solid rgba(20,86,73,.12); border-radius: 12px; padding: 10px; background: #fbfffd; }
+.custom-card-edit b { color: #08715f; font-size: .76rem; }
+.custom-card-edit textarea { width: 100%; min-height: 58px; border: 1px solid rgba(8,113,95,.2); border-radius: 9px; padding: 8px; font: inherit; }
+.custom-card-edit > div { display: flex; justify-content: flex-end; gap: 8px; }
 
 @media (max-width: 560px) { .admin-meta-fields { grid-template-columns: 1fr; } }
 

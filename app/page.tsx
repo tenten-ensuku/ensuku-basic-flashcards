@@ -322,6 +322,7 @@ export default function Home() {
   const [adminPendingDelete, setAdminPendingDelete] = useState("");
   const [addedLessons, setAddedLessons] = useState<AddedLesson[]>([]);
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
+  const [customLessonCards, setCustomLessonCards] = useState<Record<string, Flashcard[]>>({});
   const [newLessonResources, setNewLessonResources] = useState<Array<Omit<LessonResource, "id" | "lessonId">>>([]);
   const [newLesson, setNewLesson] = useState({ date: "", teacher: "", title: "", videoUrl: "" });
   const [deletedCardIdsByLesson, setDeletedCardIdsByLesson] = useState<DeletedCardIdsByLesson>({
@@ -359,9 +360,9 @@ export default function Home() {
     fetch(adminApiPath("/api/cards"), { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("問題データを取得できませんでした。");
-        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; resources?: LessonResource[] }>;
+        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; resources?: LessonResource[]; customCards?: Array<Flashcard & { lessonId: string }> }>;
       })
-      .then(({ overrides = [], quizOverrides = [], lessons = [], resources = [] }) => {
+      .then(({ overrides = [], quizOverrides = [], lessons = [], resources = [], customCards = [] }) => {
         const nextCards = withOverrides(overrides);
         const nextQuiz = withQuizOverrides(quizOverrides);
         const nextDeletedCardIds: DeletedCardIdsByLesson = {
@@ -377,6 +378,10 @@ export default function Home() {
         setDeletedQuizIds(quizOverrides.filter((item) => item.deleted).map((item) => item.id));
         setAddedLessons(lessons);
         setLessonResources(resources);
+        setCustomLessonCards(customCards.reduce<Record<string, Flashcard[]>>((grouped, card) => {
+          (grouped[card.lessonId] ??= []).push({ id: card.id, question: card.question, answer: card.answer });
+          return grouped;
+        }, {}));
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -693,6 +698,45 @@ export default function Home() {
     } finally {
       setAdminBusyCard(null);
     }
+  };
+
+  const addCustomLessonCard = async (lessonId: string) => {
+    setAdminError("");
+    setAdminBusyCard(0);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/lessons/${lessonId}/cards`), { method: "POST" });
+      const payload = await response.json() as { error?: string; card?: Flashcard };
+      if (!response.ok || !payload.card) throw new Error(payload.error ?? "問題を追加できませんでした。");
+      setCustomLessonCards((current) => ({ ...current, [lessonId]: [...(current[lessonId] ?? []), payload.card!] }));
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "問題を追加できませんでした。");
+    } finally { setAdminBusyCard(null); }
+  };
+
+  const saveCustomLessonCard = async (lessonId: string, card: Flashcard) => {
+    setAdminError("");
+    setAdminBusyCard(card.id);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/lessons/${lessonId}/cards/${card.id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(card) });
+      const payload = await response.json() as { error?: string; card?: Flashcard };
+      if (!response.ok || !payload.card) throw new Error(payload.error ?? "保存できませんでした。");
+      setCustomLessonCards((current) => ({ ...current, [lessonId]: (current[lessonId] ?? []).map((item) => item.id === card.id ? payload.card! : item) }));
+      setAdminNotice("問題を保存しました。");
+    } catch (error) { setAdminError(error instanceof Error ? error.message : "保存できませんでした。"); }
+    finally { setAdminBusyCard(null); }
+  };
+
+  const deleteCustomLessonCard = async (lessonId: string, cardId: number) => {
+    setAdminError("");
+    setAdminBusyCard(cardId);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/lessons/${lessonId}/cards/${cardId}`), { method: "DELETE" });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "削除できませんでした。");
+      setCustomLessonCards((current) => ({ ...current, [lessonId]: (current[lessonId] ?? []).filter((item) => item.id !== cardId) }));
+      setAdminNotice("問題を削除しました。");
+    } catch (error) { setAdminError(error instanceof Error ? error.message : "削除できませんでした。"); }
+    finally { setAdminBusyCard(null); }
   };
 
   const uploadCardImage = async (lessonId: LessonId, cardId: number, field: "question" | "answer", file: File) => {
@@ -1574,6 +1618,29 @@ export default function Home() {
               ＋ 授業タイトルを追加
             </button>
           </section>
+
+          {addedLessons.length > 0 && (
+            <section className="admin-custom-lessons">
+              <p className="section-kicker">ADDED LESSONS</p>
+              <h3>追加した授業の問題</h3>
+              {addedLessons.map((lesson) => (
+                <details className="admin-custom-lesson" key={lesson.id}>
+                  <summary>{lesson.date}　{lesson.teacher}　{lesson.title}<span>＋</span></summary>
+                  <div>
+                    <button type="button" className="admin-save-button" onClick={() => addCustomLessonCard(lesson.id)} disabled={adminBusyCard !== null}>＋ 問題を追加</button>
+                    {(customLessonCards[lesson.id] ?? []).map((card) => (
+                      <div className="custom-card-edit" key={card.id}>
+                        <b>Q{String(card.id).padStart(2, "0")}</b>
+                        <textarea value={card.question} onChange={(event) => setCustomLessonCards((current) => ({ ...current, [lesson.id]: (current[lesson.id] ?? []).map((item) => item.id === card.id ? { ...item, question: event.target.value } : item) }))} aria-label={`Q${card.id} 問題文`} />
+                        <textarea value={card.answer} onChange={(event) => setCustomLessonCards((current) => ({ ...current, [lesson.id]: (current[lesson.id] ?? []).map((item) => item.id === card.id ? { ...item, answer: event.target.value } : item) }))} aria-label={`Q${card.id} 解答文`} />
+                        <div><button type="button" className="admin-save-button" onClick={() => saveCustomLessonCard(lesson.id, card)} disabled={adminBusyCard !== null}>保存</button><button type="button" className="admin-delete-button" onClick={() => deleteCustomLessonCard(lesson.id, card.id)} disabled={adminBusyCard !== null}>削除</button></div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ))}
+            </section>
+          )}
 
           <div className="admin-lesson-tabs" role="tablist" aria-label="問題集を選択">
             {ADMIN_SECTIONS.map((section) => (
