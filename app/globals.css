@@ -113,6 +113,14 @@ summary:focus-visible {
   font-weight: 800;
 }
 
+.brand__mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  object-fit: cover;
+}
+
 .brand__eyebrow,
 .section-kicker {
   margin: 0 0 3px;

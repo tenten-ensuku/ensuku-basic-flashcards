@@ -282,6 +282,7 @@ function HomeHeader({ compact = false }: { compact?: boolean }) {
   return (
     <header className={compact ? "brand brand--compact" : "brand"}>
       <div className="brand__mark" aria-hidden="true">
+        <img src="/icons/serina.png" alt="" />
         向
       </div>
       <div>

@@ -31,7 +31,7 @@ test("renders the production flashcard home screen", async () => {
   assert.match(html, /<html lang="ja">/i);
   assert.match(html, /<title>一向聴 基礎講義フラッシュカード<\/title>/i);
   assert.match(html, /授業の復習に/);
-  assert.match(html, /ver(?:<!-- -->)?25/);
+  assert.match(html, /ver(?:<!-- -->)?26/);
   assert.match(html, /7\/16　ねじまき鳥先生/);
   assert.match(html, /基本序列マスタークイズ/);
   assert.match(html, /https:\/\/youtu\.be\/NE1UHrZkg6g/);
@@ -73,6 +73,6 @@ test("publishes the expected social metadata", async () => {
   );
   assert.match(html, /name="twitter:card" content="summary_large_image"/);
   assert.match(html, /name="theme-color" content="#48d6b0"/);
-  assert.match(html, /rel="icon" href="https:\/\/ensuku-basic-flashcards\.kobotenmitsu\.chatgpt\.site\/icons\/ensuku-192\.png"/);
-  assert.match(html, /rel="apple-touch-icon" href="https:\/\/ensuku-basic-flashcards\.kobotenmitsu\.chatgpt\.site\/icons\/ensuku-180\.png"/);
+  assert.match(html, /rel="icon" href="https:\/\/ensuku-basic-flashcards\.kobotenmitsu\.chatgpt\.site\/icons\/serina\.png"/);
+  assert.match(html, /rel="apple-touch-icon" href="https:\/\/ensuku-basic-flashcards\.kobotenmitsu\.chatgpt\.site\/icons\/serina\.png"/);
 });

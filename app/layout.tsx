@@ -16,9 +16,9 @@ export const metadata: Metadata = {
   description,
   manifest: `${basePath}/manifest.webmanifest`,
   icons: {
-    icon: `${basePath}/icons/ensuku-192.png`,
-    shortcut: `${basePath}/icons/ensuku-192.png`,
-    apple: `${basePath}/icons/ensuku-180.png`,
+    icon: `${basePath}/icons/serina.png`,
+    shortcut: `${basePath}/icons/serina.png`,
+    apple: `${basePath}/icons/serina.png`,
   },
   openGraph: {
     title,
