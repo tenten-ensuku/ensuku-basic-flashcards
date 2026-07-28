@@ -1,4 +1,4 @@
-export const APP_VERSION = 31;
+export const APP_VERSION = 32;
 export const STORAGE_KEY = "ensuku-basic-flashcards-v4";
 export const LEGACY_STORAGE_KEY = "ensuku-basic-flashcards-v3";
 
@@ -203,7 +203,7 @@ export function mergeFlashcardOverrides(baseCards, overrides, lessonId) {
  */
 export function createSessionCards(lessonId, mode, reviewCardIds = [], cards) {
   const lesson = LESSONS[lessonId];
-  if (!lesson) throw new RangeError(`Unknown lesson: ${lessonId}`);
+  if (!lesson && !cards) throw new RangeError(`Unknown lesson: ${lessonId}`);
   const sourceCards = cards ?? lesson.cards;
   if (mode === "all") return [...sourceCards];
   if (mode === "review") {

@@ -6,7 +6,6 @@ import {
   LEGACY_STORAGE_KEY,
   LESSONS,
   STORAGE_KEY,
-  createSessionCards,
   formatDuration,
   getRank,
   mergeFlashcardOverrides,
@@ -27,10 +26,11 @@ import { tokenizeRichText } from "./lib/rich-text.mjs";
 type Screen = "home" | "session" | "result" | "list" | "quiz" | "quiz-list" | "quiz-result" | "admin-login" | "admin";
 type SessionMode = "all" | "review";
 type Rating = "known" | "again";
-type LessonId = keyof typeof LESSONS;
+type BaseLessonId = keyof typeof LESSONS;
+type LessonId = BaseLessonId | string;
 type Flashcard = { id: number; question: string; answer: string };
-type CardsByLesson = Record<LessonId, Flashcard[]>;
-type CardOverride = Flashcard & { lessonId: LessonId; deleted?: boolean };
+type CardsByLesson = Record<string, Flashcard[]>;
+type CardOverride = Flashcard & { lessonId: BaseLessonId; deleted?: boolean };
 type AddedLesson = { id: string; date: string; teacher: string; title: string; videoUrl: string };
 type LessonResource = { id: string; lessonId: string; kind: "image" | "link"; label: string; url: string };
 type QuizQuestion = {
@@ -42,7 +42,7 @@ type QuizQuestion = {
   explanation: string;
 };
 type QuizOverride = Omit<QuizQuestion, "chapter"> & { quizId: string; deleted?: boolean };
-type AdminSection = LessonId | "quiz";
+type AdminSection = BaseLessonId | "quiz";
 type HomeSectionId = LessonId | "quiz";
 type QuizAnswer = {
   questionId: number;
@@ -56,8 +56,8 @@ type SavedQuizSession = {
   elapsedSeconds: number;
   updatedAt: string;
 };
-type ReviewCardIdsByLesson = Record<LessonId, number[]>;
-type DeletedCardIdsByLesson = Record<LessonId, number[]>;
+type ReviewCardIdsByLesson = Record<string, number[]>;
+type DeletedCardIdsByLesson = Record<BaseLessonId, number[]>;
 type LastSession = {
   lessonId: LessonId;
   mode: SessionMode;
@@ -70,7 +70,7 @@ type LastSession = {
   completedAt: string;
 };
 
-function modeLabel(lessonId: LessonId, mode: SessionMode, count = LESSONS[lessonId].cards.length) {
+function modeLabel(mode: SessionMode, count: number) {
   return mode === "all" ? `全${count}問` : "解き直しカード";
 }
 
@@ -370,7 +370,12 @@ export default function Home() {
           tenten: overrides.filter((item) => item.lessonId === "tenten" && item.deleted).map((item) => item.id),
           nejimaki: overrides.filter((item) => item.lessonId === "nejimaki" && item.deleted).map((item) => item.id),
         };
-        setCardsByLesson(nextCards);
+        const nextCustomCards = customCards.reduce<Record<string, Flashcard[]>>((grouped, card) => {
+          (grouped[card.lessonId] ??= []).push({ id: card.id, question: card.question, answer: card.answer });
+          return grouped;
+        }, {});
+        Object.values(nextCustomCards).forEach((cards) => cards.sort((left, right) => left.id - right.id));
+        setCardsByLesson({ ...nextCards, ...nextCustomCards });
         setAdminDrafts(nextCards);
         setDeletedCardIdsByLesson(nextDeletedCardIds);
         setQuizBank(nextQuiz);
@@ -378,10 +383,7 @@ export default function Home() {
         setDeletedQuizIds(quizOverrides.filter((item) => item.deleted).map((item) => item.id));
         setAddedLessons(lessons);
         setLessonResources(resources);
-        setCustomLessonCards(customCards.reduce<Record<string, Flashcard[]>>((grouped, card) => {
-          (grouped[card.lessonId] ??= []).push({ id: card.id, question: card.question, answer: card.answer });
-          return grouped;
-        }, {}));
+        setCustomLessonCards(nextCustomCards);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -409,7 +411,17 @@ export default function Home() {
         const raw = window.localStorage.getItem(STORAGE_KEY)
           ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
         const stored = readProgress(raw);
-        setReviewCardIdsByLesson(stored.reviewCardIdsByLesson);
+        const savedCustomReviewIds = (() => {
+          try {
+            const parsed = raw ? JSON.parse(raw) : {};
+            return Object.fromEntries(Object.entries(parsed?.reviewCardIdsByLesson ?? {})
+              .filter(([lessonId, ids]) => lessonId.startsWith("lesson-") && Array.isArray(ids))
+              .map(([lessonId, ids]) => [lessonId, [...new Set((ids as unknown[]).filter((id): id is number => typeof id === "number" && Number.isInteger(id) && id > 0 && id <= 10000))].sort((left, right) => left - right)]));
+          } catch {
+            return {};
+          }
+        })();
+        setReviewCardIdsByLesson({ ...stored.reviewCardIdsByLesson, ...savedCustomReviewIds });
         setLastSession(stored.lastSession as LastSession | null);
       } catch {
         // localStorageが使えない環境では初期値のまま動作する。
@@ -443,9 +455,9 @@ export default function Home() {
 
   const activeReviewCardIdsByLesson = useMemo(() => {
     const next = {} as ReviewCardIdsByLesson;
-    for (const lessonId of Object.keys(LESSONS) as LessonId[]) {
-      const availableIds = new Set(cardsByLesson[lessonId].map((card) => card.id));
-      next[lessonId] = reviewCardIdsByLesson[lessonId].filter((id) => availableIds.has(id));
+    for (const lessonId of Object.keys(cardsByLesson)) {
+      const availableIds = new Set((cardsByLesson[lessonId] ?? []).map((card) => card.id));
+      next[lessonId] = (reviewCardIdsByLesson[lessonId] ?? []).filter((id) => availableIds.has(id));
     }
     return next;
   }, [cardsByLesson, reviewCardIdsByLesson]);
@@ -453,7 +465,7 @@ export default function Home() {
     const availableIds = new Set(quizBank.map((question) => question.id));
     return quizReviewIds.filter((id) => availableIds.has(id));
   }, [quizBank, quizReviewIds]);
-  const reviewCardIds = activeReviewCardIdsByLesson[selectedLesson];
+  const reviewCardIds = activeReviewCardIdsByLesson[selectedLesson] ?? [];
   const reviewSet = useMemo(() => new Set(reviewCardIds), [reviewCardIds]);
   const currentCard = sessionCards[cardIndex];
   const currentQuizQuestion = quizQuestions[quizIndex];
@@ -481,12 +493,9 @@ export default function Home() {
 
   const startSession = useCallback(
     (lessonId: LessonId, mode: SessionMode) => {
-      const cards = createSessionCards(
-        lessonId,
-        mode,
-        activeReviewCardIdsByLesson[lessonId],
-        cardsByLesson[lessonId],
-      ) as Flashcard[];
+      const sourceCards = cardsByLesson[lessonId] ?? [];
+      const reviewIds = new Set(activeReviewCardIdsByLesson[lessonId] ?? []);
+      const cards = mode === "all" ? [...sourceCards] : sourceCards.filter((card) => reviewIds.has(card.id));
       if (cards.length === 0) return;
       setSelectedLesson(lessonId);
       setSessionMode(mode);
@@ -643,7 +652,7 @@ export default function Home() {
     }
   };
 
-  const updateAdminDraft = (lessonId: LessonId, cardId: number, field: "question" | "answer", value: string) => {
+  const updateAdminDraft = (lessonId: BaseLessonId, cardId: number, field: "question" | "answer", value: string) => {
     setAdminDrafts((current) => ({
       ...current,
       [lessonId]: current[lessonId].map((card) =>
@@ -652,7 +661,7 @@ export default function Home() {
     }));
   };
 
-  const addAdminCard = async (lessonId: LessonId) => {
+  const addAdminCard = async (lessonId: BaseLessonId) => {
     setAdminError("");
     setAdminNotice("");
     try {
@@ -708,6 +717,7 @@ export default function Home() {
       const payload = await response.json() as { error?: string; card?: Flashcard };
       if (!response.ok || !payload.card) throw new Error(payload.error ?? "問題を追加できませんでした。");
       setCustomLessonCards((current) => ({ ...current, [lessonId]: [...(current[lessonId] ?? []), payload.card!] }));
+      setCardsByLesson((current) => ({ ...current, [lessonId]: [...(current[lessonId] ?? []), payload.card!] }));
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "問題を追加できませんでした。");
     } finally { setAdminBusyCard(null); }
@@ -721,6 +731,7 @@ export default function Home() {
       const payload = await response.json() as { error?: string; card?: Flashcard };
       if (!response.ok || !payload.card) throw new Error(payload.error ?? "保存できませんでした。");
       setCustomLessonCards((current) => ({ ...current, [lessonId]: (current[lessonId] ?? []).map((item) => item.id === card.id ? payload.card! : item) }));
+      setCardsByLesson((current) => ({ ...current, [lessonId]: (current[lessonId] ?? []).map((item) => item.id === card.id ? payload.card! : item) }));
       setAdminNotice("問題を保存しました。");
     } catch (error) { setAdminError(error instanceof Error ? error.message : "保存できませんでした。"); }
     finally { setAdminBusyCard(null); }
@@ -734,12 +745,13 @@ export default function Home() {
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "削除できませんでした。");
       setCustomLessonCards((current) => ({ ...current, [lessonId]: (current[lessonId] ?? []).filter((item) => item.id !== cardId) }));
+      setCardsByLesson((current) => ({ ...current, [lessonId]: (current[lessonId] ?? []).filter((item) => item.id !== cardId) }));
       setAdminNotice("問題を削除しました。");
     } catch (error) { setAdminError(error instanceof Error ? error.message : "削除できませんでした。"); }
     finally { setAdminBusyCard(null); }
   };
 
-  const uploadCardImage = async (lessonId: LessonId, cardId: number, field: "question" | "answer", file: File) => {
+  const uploadCardImage = async (lessonId: BaseLessonId, cardId: number, field: "question" | "answer", file: File) => {
     if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
       setAdminError("JPEG・PNG・WebP・GIF画像を選択してください。");
       return;
@@ -809,7 +821,7 @@ export default function Home() {
     ));
   };
 
-  const saveAdminCard = async (lessonId: LessonId, card: Flashcard) => {
+  const saveAdminCard = async (lessonId: BaseLessonId, card: Flashcard) => {
     setAdminError("");
     setAdminNotice("");
     setAdminBusyCard(card.id);
@@ -842,7 +854,7 @@ export default function Home() {
     }
   };
 
-  const restoreAdminCard = async (lessonId: LessonId, cardId: number) => {
+  const restoreAdminCard = async (lessonId: BaseLessonId, cardId: number) => {
     setAdminError("");
     setAdminNotice("");
     setAdminBusyCard(cardId);
@@ -880,7 +892,7 @@ export default function Home() {
     }
   };
 
-  const deleteAdminCard = async (lessonId: LessonId, card: Flashcard, displayNumber: number) => {
+  const deleteAdminCard = async (lessonId: BaseLessonId, card: Flashcard, displayNumber: number) => {
     const deleteKey = `card-${lessonId}-${card.id}`;
     if (adminPendingDelete !== deleteKey) {
       setAdminPendingDelete(deleteKey);
@@ -1161,13 +1173,25 @@ export default function Home() {
     setScreen("home");
   };
 
-  const renderAddedLessonPanel = (lesson: AddedLesson) => (
-    <section className="mode-panel mode-panel--collapsible" aria-label={`${lesson.date}　${lesson.teacher}　${lesson.title}`} key={lesson.id}>
+  const lessonLabel = (lessonId: LessonId) => LESSONS[lessonId as BaseLessonId]?.label
+    ?? (() => {
+      const lesson = addedLessons.find((item) => item.id === lessonId);
+      return lesson ? `${lesson.date}　${lesson.teacher}　${lesson.title}` : "授業の復習";
+    })();
+
+  const renderAddedLessonPanel = (lesson: AddedLesson) => {
+    const cards = cardsByLesson[lesson.id] ?? [];
+    const lessonReviewIds = activeReviewCardIdsByLesson[lesson.id] ?? [];
+    const isOpen = openHomeSection === lesson.id;
+    const contentId = `lesson-content-${lesson.id}`;
+    return (
+    <section className={`mode-panel mode-panel--collapsible ${isOpen ? "mode-panel--open" : ""}`} aria-label={`${lesson.date}　${lesson.teacher}　${lesson.title}`} key={lesson.id}>
       <div className="lesson-summary">
-        <div className="lesson-summary__toggle lesson-summary__toggle--static">
+        <button className="lesson-summary__toggle" type="button" onClick={() => setOpenHomeSection(isOpen ? null : lesson.id)} aria-expanded={isOpen} aria-controls={contentId} data-testid={`toggle-lesson-${lesson.id}`}>
           <span className="lesson-summary__title">{lesson.date}　{lesson.teacher}　{lesson.title}</span>
-          <span className="review-count">問題を追加して準備</span>
-        </div>
+          <span className="review-count">解き直し <strong>{lessonReviewIds.length}</strong>枚</span>
+          <span className="lesson-summary__chevron" aria-hidden="true">{isOpen ? "⌃" : "⌄"}</span>
+        </button>
         {lesson.videoUrl && (
           <a className="youtube-icon-button" href={lesson.videoUrl} target="_blank" rel="noreferrer" aria-label={`${lesson.title}の授業動画をYouTubeで見る`}>
             <span className="youtube-play-mark" aria-hidden="true" />
@@ -1179,10 +1203,27 @@ export default function Home() {
           </a>
         ))}
       </div>
-    </section>
-  );
 
-  const renderLessonPanel = (lessonId: LessonId) => {
+      {isOpen && (
+        <div className="mode-panel__content" id={contentId}>
+          {cards.length > 0 ? <>
+            <div className="mode-grid">
+              <button className="mode-card mode-card--primary" onClick={() => startSession(lesson.id, "all")} data-testid={`start-all-${lesson.id}`}>
+                <span className="mode-card__number">{cards.length}</span><span><strong>全{cards.length}問</strong><small>講義内容を一周する</small></span><span className="mode-card__arrow" aria-hidden="true">→</span>
+              </button>
+              <button className="mode-card mode-card--review" onClick={() => startSession(lesson.id, "review")} disabled={lessonReviewIds.length === 0} data-testid={`start-review-${lesson.id}`}>
+                <span className="mode-card__number">↺</span><span><strong>解き直しカード</strong><small>{lessonReviewIds.length ? `${lessonReviewIds.length}枚を解き直す` : "解き直しに追加すると使えます"}</small></span><span className="mode-card__arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
+            <button className="text-button lesson-list-button" onClick={() => { setSelectedLesson(lesson.id); setScreen("list"); }}><span aria-hidden="true">☷</span> 問題一覧を見る</button>
+          </> : <p className="empty-state">問題を追加するとここから始められます。</p>}
+        </div>
+      )}
+    </section>
+    );
+  };
+
+  const renderLessonPanel = (lessonId: BaseLessonId) => {
     const lesson = LESSONS[lessonId];
     const lessonReviewIds = activeReviewCardIdsByLesson[lessonId];
     const isOpen = openHomeSection === lessonId;
@@ -1365,7 +1406,7 @@ export default function Home() {
           <div className="home-footer">
             {lastSession && (
               <p className="last-result">
-                前回：{LESSONS[lastSession.lessonId ?? "tenten"].label}・{modeLabel(lastSession.lessonId ?? "tenten", lastSession.mode, lastSession.count)}・
+                前回：{lessonLabel(lastSession.lessonId ?? "tenten")}・{modeLabel(lastSession.mode, lastSession.count)}・
                 <strong>{lastSession.rate}%</strong>・ランク
                 <strong>{lastSession.rank}</strong>
               </p>
@@ -1903,7 +1944,7 @@ export default function Home() {
               ×
             </button>
             <div className="session-title">
-              <span>{LESSONS[selectedLesson].label} · {modeLabel(selectedLesson, sessionMode, sessionCards.length)}</span>
+              <span>{lessonLabel(selectedLesson)} · {modeLabel(sessionMode, sessionCards.length)}</span>
               <strong>
                 {cardIndex + 1}<small> / {sessionCards.length}</small>
               </strong>
@@ -2005,7 +2046,7 @@ export default function Home() {
             <p className="section-kicker">SESSION COMPLETE</p>
             <h2 id="result-title">おつかれさまでした</h2>
             <p className="result-subtitle">
-              {LESSONS[lastSession.lessonId ?? "tenten"].label} · {modeLabel(lastSession.lessonId ?? "tenten", lastSession.mode, lastSession.count)} 完了
+              {lessonLabel(lastSession.lessonId ?? "tenten")} · {modeLabel(lastSession.mode, lastSession.count)} 完了
             </p>
 
             <div className="result-score">
@@ -2156,7 +2197,7 @@ export default function Home() {
             </button>
             <div>
               <p className="section-kicker">ALL FLASHCARDS</p>
-              <h2 id="list-title"><LessonTitle label={LESSONS[selectedLesson].label} /></h2>
+              <h2 id="list-title"><LessonTitle label={lessonLabel(selectedLesson)} /></h2>
             </div>
             <span className="review-count">
               解き直し <strong>{reviewCardIds.length}</strong>枚
