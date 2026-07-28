@@ -440,7 +440,7 @@ export default function Home() {
   const quizSelectedIndex = currentQuizAnswer?.selectedIndex ?? null;
   const quizReviewSet = useMemo(() => new Set(activeQuizReviewIds), [activeQuizReviewIds]);
   const progress = sessionCards.length
-    ? ((cardIndex + (revealed ? 0.5 : 0)) / sessionCards.length) * 100
+    ? ((cardIndex + 1) / sessionCards.length) * 100
     : 0;
   const quizProgress = quizQuestions.length
     ? (quizAnswers.length / quizQuestions.length) * 100
@@ -946,9 +946,9 @@ export default function Home() {
   useEffect(() => {
     if (screen !== "session") return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === " " || event.code === "Space") {
+      if (event.key === " " || event.code === "Space" || event.key === "Enter") {
         event.preventDefault();
-        if (!revealed) setRevealed(true);
+        setRevealed((value) => !value);
       } else if (revealed && event.key === "ArrowRight") {
         event.preventDefault();
         rateCard("known");
@@ -1615,31 +1615,55 @@ export default function Home() {
           </div>
 
           <div className="study-stage">
-            <article className={`flashcard ${revealed ? "flashcard--revealed" : ""}`}>
-              <div className="card-meta">
-                <span>QUESTION</span>
-                <strong>Q{String(flashcardNumber(selectedLesson, currentCard.id)).padStart(2, "0")}</strong>
-              </div>
-              <p className="question-text"><MahjongText text={currentCard.question} /></p>
-
-              <div className="answer-divider">
-                <span>{revealed ? "ANSWER" : "THINK & REVEAL"}</span>
-              </div>
-
-              {revealed ? (
-                <div className="answer-block" data-testid="answer">
-                  <p><MahjongText text={currentCard.answer} /></p>
+            <article
+              className={`flashcard flashcard--flippable ${
+                revealed ? "flashcard--revealed" : ""
+              }`}
+            >
+              <div
+                className={`card-face ${
+                  revealed ? "card-face--answer" : "card-face--question"
+                }`}
+                key={revealed ? "answer" : "question"}
+              >
+                <div className="card-meta card-meta--minimal">
+                  <strong>
+                    Q{String(flashcardNumber(selectedLesson, currentCard.id)).padStart(2, "0")}
+                  </strong>
                 </div>
-              ) : (
-                <button
-                  className="reveal-button"
-                  onClick={() => setRevealed(true)}
-                  data-testid="reveal-answer"
-                >
-                  <span aria-hidden="true">◉</span> 答えを見る
-                  <kbd>Space</kbd>
-                </button>
-              )}
+
+                {revealed ? (
+                  <div className="answer-block" data-testid="answer">
+                    <p><MahjongText text={currentCard.answer} /></p>
+                  </div>
+                ) : (
+                  <p className="question-text">
+                    <MahjongText text={currentCard.question} />
+                  </p>
+                )}
+
+                {revealed ? (
+                  <button
+                    className="reveal-button reveal-button--back"
+                    type="button"
+                    onClick={() => setRevealed(false)}
+                    data-testid="show-question"
+                  >
+                    <span aria-hidden="true">↶</span> 問題を見る
+                    <kbd>Space</kbd>
+                  </button>
+                ) : (
+                  <button
+                    className="reveal-button"
+                    type="button"
+                    onClick={() => setRevealed(true)}
+                    data-testid="reveal-answer"
+                  >
+                    答えを見る
+                    <kbd>Space</kbd>
+                  </button>
+                )}
+              </div>
             </article>
           </div>
 

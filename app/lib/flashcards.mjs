@@ -1,4 +1,4 @@
-export const APP_VERSION = 21;
+export const APP_VERSION = 22;
 export const STORAGE_KEY = "ensuku-basic-flashcards-v4";
 export const LEGACY_STORAGE_KEY = "ensuku-basic-flashcards-v3";
 
