@@ -109,7 +109,7 @@ summary:focus-visible {
   color: #08715f;
   box-shadow: 0 8px 20px rgba(8, 113, 95, 0.18);
   font-family: inherit;
-  font-size: 1.5rem;
+  font-size: 0;
   font-weight: 800;
 }
 
