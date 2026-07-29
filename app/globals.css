@@ -542,8 +542,12 @@ summary:focus-visible {
 .lesson-resource-drafts { display: flex; flex-wrap: wrap; gap: 6px; }
 .lesson-resource-drafts span { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 5px 7px; background: #e5f8ef; color: #08715f; font-size: .72rem; font-weight: 800; }
 .lesson-resource-drafts button { border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; font: inherit; }
-.lesson-resource-icon { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid rgba(8,113,95,.18); border-radius: 11px; background: #fff; color: #08715f; font-weight: 900; text-decoration: none; }
+.lesson-resource-icon { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid rgba(8,113,95,.18); border-radius: 11px; background: #fff; color: #08715f; font-weight: 900; text-decoration: none; cursor: pointer; }
 .lesson-resource-icon--image { color: #5b43bb; background: #f0ecff; }
+.image-preview { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(8, 43, 36, .66); }
+.image-preview__panel { width: min(100%, 920px); max-height: calc(100svh - 36px); overflow: auto; border-radius: 20px; padding: 12px; background: #fffdf6; box-shadow: 0 22px 60px rgba(0,0,0,.34); }
+.image-preview__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; color: var(--ink); }
+.image-preview__panel img { display: block; width: 100%; max-height: calc(100svh - 120px); object-fit: contain; border-radius: 12px; background: #f0f4f1; }
 .admin-custom-lessons { display: grid; gap: 10px; margin: 18px 0; }
 .admin-custom-lessons h3 { margin: 0; font-size: 1rem; }
 .admin-custom-lesson { overflow: hidden; border: 1px solid rgba(20,86,73,.16); border-radius: 14px; background: #fff; }

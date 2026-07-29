@@ -44,6 +44,12 @@ test("base lessons expose the same lesson metadata editor as added lessons", () 
   assert.match(pageSource, /資料URL（Enterで追加）/);
 });
 
+test("image resources open in an in-app image preview", () => {
+  assert.match(pageSource, /const \[imagePreview, setImagePreview\]/);
+  assert.match(pageSource, /画像資料を画面内で開く/);
+  assert.match(pageSource, /className="image-preview"/);
+});
+
 test("launcher icons stay separate from the configurable lesson icon", () => {
   const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
   assert.match(layoutSource, /icons\/ensuku-192\.png\?v=43/);

@@ -421,6 +421,7 @@ export default function Home() {
   const [appTone, setAppTone] = useState<AppTone>("mint");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
+  const [imagePreview, setImagePreview] = useState<{ url: string; label: string } | null>(null);
   const [toastMessage, setToastMessage] = useState("");
   const [customLessonCards, setCustomLessonCards] = useState<Record<string, Flashcard[]>>({});
   const [newLessonResources, setNewLessonResources] = useState<Array<Omit<LessonResource, "id" | "lessonId">>>([]);
@@ -1837,10 +1838,10 @@ export default function Home() {
             <span className="youtube-play-mark" aria-hidden="true" />
           </a>
         )}
-        {lessonResources.filter((resource) => resource.lessonId === lesson.id).map((resource) => (
-          <a className={`lesson-resource-icon lesson-resource-icon--${resource.kind}`} href={resource.url} target="_blank" rel="noreferrer" aria-label={resource.kind === "image" ? `${resource.label || "画像資料"}を開く` : `${resource.label || "資料"}を開く`} title={resource.label || (resource.kind === "image" ? "画像資料を開く" : "資料を開く")} key={resource.id}>
-            {resource.kind === "image" ? "▧" : "↗"}
-          </a>
+        {lessonResources.filter((resource) => resource.lessonId === lesson.id).map((resource) => resource.kind === "image" ? (
+          <button type="button" className="lesson-resource-icon lesson-resource-icon--image" onClick={() => setImagePreview({ url: resource.url, label: resource.label || "画像資料" })} aria-label={`${resource.label || "画像資料"}を画面内で開く`} title="画像資料を画面内で開く" key={resource.id}>▧</button>
+        ) : (
+          <a className={`lesson-resource-icon lesson-resource-icon--${resource.kind}`} href={resource.url} target="_blank" rel="noreferrer" aria-label={`${resource.label || "資料"}を開く`} title={resource.label || "資料を開く"} key={resource.id}>↗</a>
         ))}
       </div>
 
@@ -1904,18 +1905,10 @@ export default function Home() {
               <span className="youtube-play-mark" aria-hidden="true" />
             </a>
           )}
-          {lessonResources.filter((resource) => resource.lessonId === lessonId).map((resource) => (
-            <a
-              className={`lesson-resource-icon lesson-resource-icon--${resource.kind}`}
-              href={resource.url}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`${resource.label || (resource.kind === "image" ? "画像資料" : "資料")}を開く`}
-              title={resource.label || (resource.kind === "image" ? "画像資料を開く" : "資料を開く")}
-              key={resource.id}
-            >
-              {resource.kind === "image" ? "▧" : "↗"}
-            </a>
+          {lessonResources.filter((resource) => resource.lessonId === lessonId).map((resource) => resource.kind === "image" ? (
+            <button type="button" className="lesson-resource-icon lesson-resource-icon--image" onClick={() => setImagePreview({ url: resource.url, label: resource.label || "画像資料" })} aria-label={`${resource.label || "画像資料"}を画面内で開く`} title="画像資料を画面内で開く" key={resource.id}>▧</button>
+          ) : (
+            <a className={`lesson-resource-icon lesson-resource-icon--${resource.kind}`} href={resource.url} target="_blank" rel="noreferrer" aria-label={`${resource.label || "資料"}を開く`} title={resource.label || "資料を開く"} key={resource.id}>↗</a>
           ))}
         </div>
 
@@ -1976,6 +1969,14 @@ export default function Home() {
     <main className="app-shell" data-tone={appTone}>
       <div className="felt-grain" aria-hidden="true" />
       {toastMessage && <div className="toast-message" role="status">{toastMessage}</div>}
+      {imagePreview && (
+        <section className="image-preview" role="dialog" aria-modal="true" aria-label={imagePreview.label} onClick={() => setImagePreview(null)}>
+          <div className="image-preview__panel" onClick={(event) => event.stopPropagation()}>
+            <div className="image-preview__top"><strong>{imagePreview.label}</strong><button type="button" className="icon-button" onClick={() => setImagePreview(null)} title="画像を閉じる" aria-label="画像を閉じる">×</button></div>
+            <img src={imagePreview.url} alt={imagePreview.label} />
+          </div>
+        </section>
+      )}
 
       {screen === "home" && (
         <section className="screen screen--home" aria-labelledby="app-title">
