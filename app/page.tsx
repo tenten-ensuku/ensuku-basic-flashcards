@@ -23,7 +23,7 @@ import {
 } from "./lib/quiz.mjs";
 import { tokenizeRichText } from "./lib/rich-text.mjs";
 
-type Screen = "home" | "session" | "result" | "list" | "quiz" | "quiz-list" | "quiz-result" | "admin-login" | "admin";
+type Screen = "home" | "session" | "result" | "list" | "favorites" | "quiz" | "quiz-list" | "quiz-result" | "admin-login" | "admin";
 type SessionMode = "all" | "review";
 type Rating = "known" | "again";
 type SessionEditField = "question" | "answer" | null;
@@ -33,7 +33,7 @@ type LessonId = BaseLessonId | string;
 type Flashcard = { id: number; question: string; answer: string };
 type CardsByLesson = Record<string, Flashcard[]>;
 type CardOverride = Flashcard & { lessonId: BaseLessonId; deleted?: boolean };
-type AddedLesson = { id: string; date: string; teacher: string; title: string; videoUrl: string };
+type AddedLesson = { id: string; date: string; teacher: string; title: string; videoUrl: string; sortOrder?: number };
 type LessonResource = { id: string; lessonId: string; kind: "image" | "link"; label: string; url: string };
 type QuizQuestion = {
   id: number;
@@ -59,6 +59,7 @@ type SavedQuizSession = {
   updatedAt: string;
 };
 type ReviewCardIdsByLesson = Record<string, number[]>;
+type FavoriteCardIdsByLesson = Record<string, number[]>;
 type DeletedCardIdsByLesson = Record<BaseLessonId, number[]>;
 type LastSession = {
   lessonId: LessonId;
@@ -70,6 +71,16 @@ type LastSession = {
   rank: string;
   elapsedSeconds: number;
   completedAt: string;
+};
+type SavedFlashcardSession = {
+  lessonId: LessonId;
+  mode: SessionMode;
+  cardIds: number[];
+  currentIndex: number;
+  revealed: boolean;
+  ratings: Record<string, Rating>;
+  elapsedSeconds: number;
+  updatedAt: string;
 };
 
 function modeLabel(mode: SessionMode, count: number) {
@@ -250,15 +261,51 @@ function MahjongText({ text, links = true }: { text: string; links?: boolean }) 
   );
 }
 
-function safeSave(reviewCardIdsByLesson: ReviewCardIdsByLesson, lastSession: LastSession | null) {
+function safeSave(
+  reviewCardIdsByLesson: ReviewCardIdsByLesson,
+  lastSession: LastSession | null,
+  session: SavedFlashcardSession | null = null,
+  favoriteCardIdsByLesson?: FavoriteCardIdsByLesson,
+) {
   try {
+    const existing = favoriteCardIdsByLesson ?? (() => {
+      try {
+        const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "{}");
+        return stored?.favoriteCardIdsByLesson && typeof stored.favoriteCardIdsByLesson === "object"
+          ? stored.favoriteCardIdsByLesson as FavoriteCardIdsByLesson
+          : {};
+      } catch {
+        return {};
+      }
+    })();
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ reviewCardIdsByLesson, lastSession }),
+      JSON.stringify({ reviewCardIdsByLesson, favoriteCardIdsByLesson: existing, lastSession, session }),
     );
   } catch {
     // 保存不可でも、現在のセッションはそのまま続ける。
   }
+}
+
+function createSavedFlashcardSession(
+  lessonId: LessonId,
+  mode: SessionMode,
+  cards: readonly Flashcard[],
+  currentIndex: number,
+  revealed: boolean,
+  ratings: Record<number, Rating>,
+  elapsedSeconds: number,
+): SavedFlashcardSession {
+  return {
+    lessonId,
+    mode,
+    cardIds: cards.map((card) => card.id),
+    currentIndex,
+    revealed,
+    ratings: Object.fromEntries(Object.entries(ratings).map(([id, rating]) => [String(id), rating])),
+    elapsedSeconds: Math.max(0, Math.floor(elapsedSeconds)),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 function safeSaveQuiz(reviewQuestionIds: number[], session: SavedQuizSession | null) {
@@ -330,6 +377,8 @@ export default function Home() {
   const [adminBusyCard, setAdminBusyCard] = useState<number | null>(null);
   const [adminPendingDelete, setAdminPendingDelete] = useState("");
   const [addedLessons, setAddedLessons] = useState<AddedLesson[]>([]);
+  const [lessonEditDraft, setLessonEditDraft] = useState<AddedLesson | null>(null);
+  const [draggedLessonId, setDraggedLessonId] = useState<string | null>(null);
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
   const [customLessonCards, setCustomLessonCards] = useState<Record<string, Flashcard[]>>({});
   const [newLessonResources, setNewLessonResources] = useState<Array<Omit<LessonResource, "id" | "lessonId">>>([]);
@@ -341,6 +390,11 @@ export default function Home() {
   });
   const [deletedQuizIds, setDeletedQuizIds] = useState<number[]>([]);
   const [reviewCardIdsByLesson, setReviewCardIdsByLesson] = useState<ReviewCardIdsByLesson>({
+    tenten0718: [],
+    tenten: [],
+    nejimaki: [],
+  });
+  const [favoriteCardIdsByLesson, setFavoriteCardIdsByLesson] = useState<FavoriteCardIdsByLesson>({
     tenten0718: [],
     tenten: [],
     nejimaki: [],
@@ -357,6 +411,7 @@ export default function Home() {
   const [revealed, setRevealed] = useState(false);
   const [knownCount, setKnownCount] = useState(0);
   const [againCount, setAgainCount] = useState(0);
+  const [sessionRatings, setSessionRatings] = useState<Record<number, Rating>>({});
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
@@ -364,6 +419,7 @@ export default function Home() {
   const [quizAnswers, setQuizAnswers] = useState<QuizAnswer[]>([]);
   const [quizReviewIds, setQuizReviewIds] = useState<number[]>([]);
   const [savedQuizSession, setSavedQuizSession] = useState<SavedQuizSession | null>(null);
+  const [savedFlashcardSession, setSavedFlashcardSession] = useState<SavedFlashcardSession | null>(null);
   const startedAtRef = useRef(0);
   const resultRef = useRef<LastSession | null>(null);
 
@@ -399,7 +455,7 @@ export default function Home() {
         setQuizBank(nextQuiz);
         setAdminQuizDrafts(nextQuiz);
         setDeletedQuizIds(quizOverrides.filter((item) => item.deleted).map((item) => item.id));
-        setAddedLessons(lessons);
+      setAddedLessons([...lessons].sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || right.date.localeCompare(left.date, "ja")));
         setLessonResources(resources);
         setCustomLessonCards(nextCustomCards);
       })
@@ -439,8 +495,20 @@ export default function Home() {
             return {};
           }
         })();
+        const savedCustomFavoriteIds = (() => {
+          try {
+            const parsed = raw ? JSON.parse(raw) : {};
+            return Object.fromEntries(Object.entries(parsed?.favoriteCardIdsByLesson ?? {})
+              .filter(([lessonId, ids]) => lessonId.startsWith("lesson-") && Array.isArray(ids))
+              .map(([lessonId, ids]) => [lessonId, [...new Set((ids as unknown[]).filter((id): id is number => typeof id === "number" && Number.isInteger(id) && id > 0 && id <= 10000))].sort((left, right) => left - right)]));
+          } catch {
+            return {};
+          }
+        })();
         setReviewCardIdsByLesson({ ...stored.reviewCardIdsByLesson, ...savedCustomReviewIds });
+        setFavoriteCardIdsByLesson({ ...stored.favoriteCardIdsByLesson, ...savedCustomFavoriteIds });
         setLastSession(stored.lastSession as LastSession | null);
+        setSavedFlashcardSession(stored.session as SavedFlashcardSession | null);
       } catch {
         // localStorageが使えない環境では初期値のまま動作する。
       }
@@ -483,8 +551,22 @@ export default function Home() {
     const availableIds = new Set(quizBank.map((question) => question.id));
     return quizReviewIds.filter((id) => availableIds.has(id));
   }, [quizBank, quizReviewIds]);
+  const activeFavoriteCardIdsByLesson = useMemo(() => {
+    const next = {} as FavoriteCardIdsByLesson;
+    for (const lessonId of Object.keys(cardsByLesson)) {
+      const availableIds = new Set((cardsByLesson[lessonId] ?? []).map((card) => card.id));
+      next[lessonId] = (favoriteCardIdsByLesson[lessonId] ?? []).filter((id) => availableIds.has(id));
+    }
+    return next;
+  }, [cardsByLesson, favoriteCardIdsByLesson]);
   const reviewCardIds = activeReviewCardIdsByLesson[selectedLesson] ?? [];
   const reviewSet = useMemo(() => new Set(reviewCardIds), [reviewCardIds]);
+  const favoriteCardIds = activeFavoriteCardIdsByLesson[selectedLesson] ?? [];
+  const favoriteSet = useMemo(() => new Set(favoriteCardIds), [favoriteCardIds]);
+  const favoriteCards = useMemo(() => Object.entries(cardsByLesson).flatMap(([lessonId, cards]) => {
+    const ids = new Set(activeFavoriteCardIdsByLesson[lessonId] ?? []);
+    return cards.filter((card) => ids.has(card.id)).map((card) => ({ lessonId, card }));
+  }), [activeFavoriteCardIdsByLesson, cardsByLesson]);
   const currentCard = sessionCards[cardIndex];
   const currentQuizQuestion = quizQuestions[quizIndex];
   const flashcardNumber = (lessonId: LessonId, cardId: number) =>
@@ -509,6 +591,26 @@ export default function Home() {
     return quizQuestions.filter((question) => missedIds.has(question.id));
   }, [quizAnswers, quizQuestions]);
 
+  const persistFlashcardSession = useCallback((
+    nextIndex = cardIndex,
+    nextRevealed = revealed,
+    nextRatings = sessionRatings,
+    nextElapsed = elapsedSeconds,
+  ) => {
+    if (!sessionCards.length) return;
+    const session = createSavedFlashcardSession(
+      selectedLesson,
+      sessionMode,
+      sessionCards,
+      nextIndex,
+      nextRevealed,
+      nextRatings,
+      nextElapsed,
+    );
+    setSavedFlashcardSession(session);
+    safeSave(activeReviewCardIdsByLesson, lastSession, session);
+  }, [activeReviewCardIdsByLesson, cardIndex, elapsedSeconds, lastSession, revealed, selectedLesson, sessionCards, sessionMode, sessionRatings]);
+
   const startSession = useCallback(
     (lessonId: LessonId, mode: SessionMode) => {
       const sourceCards = cardsByLesson[lessonId] ?? [];
@@ -524,14 +626,48 @@ export default function Home() {
       setRevealed(false);
       setKnownCount(0);
       setAgainCount(0);
+      setSessionRatings({});
       setElapsedSeconds(0);
       setIsAdvancing(false);
       resultRef.current = null;
       startedAtRef.current = Date.now();
+      const initialSession = createSavedFlashcardSession(lessonId, mode, cards, 0, false, {}, 0);
+      setSavedFlashcardSession(initialSession);
+      safeSave(activeReviewCardIdsByLesson, lastSession, initialSession);
       setScreen("session");
     },
-    [activeReviewCardIdsByLesson, cardsByLesson],
+    [activeReviewCardIdsByLesson, cardsByLesson, lastSession],
   );
+
+  const resumeSession = useCallback(() => {
+    if (!savedFlashcardSession) return;
+    const sourceCards = cardsByLesson[savedFlashcardSession.lessonId] ?? [];
+    const cards = savedFlashcardSession.cardIds.flatMap((id) => {
+      const card = sourceCards.find((item) => item.id === id);
+      return card ? [card] : [];
+    });
+    if (!cards.length) return;
+    const ratings = Object.fromEntries(
+      Object.entries(savedFlashcardSession.ratings ?? {}).filter(([id, rating]) =>
+        cards.some((card) => String(card.id) === id) && (rating === "known" || rating === "again"),
+      ).map(([id, rating]) => [Number(id), rating as Rating]),
+    ) as Record<number, Rating>;
+    const index = Math.max(0, Math.min(savedFlashcardSession.currentIndex, cards.length - 1));
+    setSelectedLesson(savedFlashcardSession.lessonId);
+    setSessionMode(savedFlashcardSession.mode);
+    setSessionCards(cards);
+    setCardIndex(index);
+    setRevealed(Boolean(savedFlashcardSession.revealed));
+    setSessionRatings(ratings);
+    setKnownCount(Object.values(ratings).filter((rating) => rating === "known").length);
+    setAgainCount(Object.values(ratings).filter((rating) => rating === "again").length);
+    setElapsedSeconds(savedFlashcardSession.elapsedSeconds);
+    setSessionEditField(null);
+    setSessionEditText("");
+    setIsAdvancing(false);
+    startedAtRef.current = Date.now() - (savedFlashcardSession.elapsedSeconds * 1000);
+    setScreen("session");
+  }, [cardsByLesson, savedFlashcardSession]);
 
   const startQuiz = useCallback((questions?: readonly QuizQuestion[]) => {
     const source = questions ?? quizBank;
@@ -743,6 +879,67 @@ export default function Home() {
     } finally { setAdminBusyCard(null); }
   };
 
+  const saveLessonMetadata = async () => {
+    if (!lessonEditDraft) return;
+    setAdminError("");
+    setAdminBusyCard(0);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/lessons/${lessonEditDraft.id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(lessonEditDraft),
+      });
+      const payload = await response.json() as { error?: string; lesson?: AddedLesson };
+      if (!response.ok || !payload.lesson) throw new Error(payload.error ?? "授業情報を保存できませんでした。");
+      setAddedLessons((current) => current.map((lesson) => lesson.id === lessonEditDraft.id ? { ...lesson, ...payload.lesson } : lesson));
+      setLessonEditDraft(null);
+      setAdminNotice("授業情報を保存しました。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "授業情報を保存できませんでした。");
+    } finally { setAdminBusyCard(null); }
+  };
+
+  const deleteLessonMetadata = async (lesson: AddedLesson) => {
+    if (!window.confirm(`「${lesson.title}」を削除しますか？削除後も復元できます。`)) return;
+    setAdminError("");
+    setAdminBusyCard(0);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/lessons/${lesson.id}`), { method: "DELETE" });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "授業を削除できませんでした。");
+      setAddedLessons((current) => current.filter((item) => item.id !== lesson.id));
+      setLessonEditDraft(null);
+      setAdminNotice("授業を削除しました。カードと学習記録は保持されています。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "授業を削除できませんでした。");
+    } finally { setAdminBusyCard(null); }
+  };
+
+  const reorderLessons = async (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    const original = [...addedLessons];
+    const fromIndex = original.findIndex((lesson) => lesson.id === fromId);
+    const toIndex = original.findIndex((lesson) => lesson.id === toId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const next = [...original];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setAddedLessons(next);
+    try {
+      const response = await fetch(adminApiPath("/api/admin/lessons/order"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lessonIds: next.map((lesson) => lesson.id) }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "授業の並び順を保存できませんでした。");
+      setAdminNotice("授業の順番を保存しました。");
+    } catch (error) {
+      setAddedLessons(original);
+      setAdminError(error instanceof Error ? error.message : "授業の並び順を保存できませんでした。");
+    }
+  };
+
   const saveCustomLessonCard = async (lessonId: string, card: Flashcard) => {
     setAdminError("");
     setAdminBusyCard(card.id);
@@ -766,6 +963,11 @@ export default function Home() {
       if (!response.ok) throw new Error(payload.error ?? "削除できませんでした。");
       setCustomLessonCards((current) => ({ ...current, [lessonId]: (current[lessonId] ?? []).filter((item) => item.id !== cardId) }));
       setCardsByLesson((current) => ({ ...current, [lessonId]: (current[lessonId] ?? []).filter((item) => item.id !== cardId) }));
+      const nextReviewState = { ...activeReviewCardIdsByLesson, [lessonId]: (activeReviewCardIdsByLesson[lessonId] ?? []).filter((id) => id !== cardId) };
+      const nextFavoriteState = { ...activeFavoriteCardIdsByLesson, [lessonId]: (activeFavoriteCardIdsByLesson[lessonId] ?? []).filter((id) => id !== cardId) };
+      setReviewCardIdsByLesson(nextReviewState);
+      setFavoriteCardIdsByLesson(nextFavoriteState);
+      safeSave(nextReviewState, lastSession, null, nextFavoriteState);
       setAdminNotice("問題を削除しました。");
     } catch (error) { setAdminError(error instanceof Error ? error.message : "削除できませんでした。"); }
     finally { setAdminBusyCard(null); }
@@ -944,8 +1146,11 @@ export default function Home() {
       }));
       const nextReviewIds = activeReviewCardIdsByLesson[lessonId].filter((id) => id !== card.id);
       const nextReviewState = { ...activeReviewCardIdsByLesson, [lessonId]: nextReviewIds };
+      const nextFavoriteIds = (activeFavoriteCardIdsByLesson[lessonId] ?? []).filter((id) => id !== card.id);
+      const nextFavoriteState = { ...activeFavoriteCardIdsByLesson, [lessonId]: nextFavoriteIds };
       setReviewCardIdsByLesson(nextReviewState);
-      safeSave(nextReviewState, lastSession);
+      setFavoriteCardIdsByLesson(nextFavoriteState);
+      safeSave(nextReviewState, lastSession, null, nextFavoriteState);
       setAdminPendingDelete("");
       setAdminNotice("問題を削除しました。問題数と問題番号は自動で詰め直されました。");
     } catch (error) {
@@ -1079,13 +1284,15 @@ export default function Home() {
         ...activeReviewCardIdsByLesson,
         [selectedLesson]: nextReviewIds,
       };
-      const nextKnown = knownCount + (rating === "known" ? 1 : 0);
-      const nextAgain = againCount + (rating === "again" ? 1 : 0);
+      const nextRatings = { ...sessionRatings, [currentCard.id]: rating };
+      const nextKnown = Object.values(nextRatings).filter((value) => value === "known").length;
+      const nextAgain = Object.values(nextRatings).filter((value) => value === "again").length;
       const isLast = cardIndex >= sessionCards.length - 1;
 
       setReviewCardIdsByLesson(nextReviewCardIdsByLesson);
       setKnownCount(nextKnown);
       setAgainCount(nextAgain);
+      setSessionRatings(nextRatings);
 
       if (isLast) {
         const finalElapsed = Math.floor(
@@ -1105,9 +1312,20 @@ export default function Home() {
         };
         resultRef.current = result;
         setLastSession(result);
-        safeSave(nextReviewCardIdsByLesson, result);
+        setSavedFlashcardSession(null);
+        safeSave(nextReviewCardIdsByLesson, result, null);
       } else {
-        safeSave(nextReviewCardIdsByLesson, lastSession);
+        const nextSession = createSavedFlashcardSession(
+          selectedLesson,
+          sessionMode,
+          sessionCards,
+          cardIndex + 1,
+          false,
+          nextRatings,
+          elapsedSeconds,
+        );
+        setSavedFlashcardSession(nextSession);
+        safeSave(nextReviewCardIdsByLesson, lastSession, nextSession);
       }
 
       window.setTimeout(() => {
@@ -1134,8 +1352,18 @@ export default function Home() {
       selectedLesson,
       sessionCards.length,
       sessionMode,
+      sessionRatings,
     ],
   );
+
+  const moveSessionCard = useCallback((offset: number) => {
+    if (!sessionCards.length || isAdvancing || sessionEditField) return;
+    const nextIndex = Math.max(0, Math.min(cardIndex + offset, sessionCards.length - 1));
+    if (nextIndex === cardIndex) return;
+    setCardIndex(nextIndex);
+    setRevealed(false);
+    persistFlashcardSession(nextIndex, false);
+  }, [cardIndex, isAdvancing, persistFlashcardSession, sessionCards.length, sessionEditField]);
 
   useEffect(() => {
     if (screen !== "session") return;
@@ -1184,6 +1412,7 @@ export default function Home() {
   }, [advanceQuiz, answerQuiz, goToQuizIndex, quizIndex, quizSelectedIndex, screen]);
 
   const leaveSession = () => {
+    persistFlashcardSession();
     setScreen("home");
     setSessionCards([]);
     setIsAdvancing(false);
@@ -1341,6 +1570,26 @@ export default function Home() {
     setDraggedCard(null);
   };
 
+  const toggleFavoriteCard = (lessonId: LessonId, cardId: number) => {
+    const currentIds = activeFavoriteCardIdsByLesson[lessonId] ?? [];
+    const nextIds = currentIds.includes(cardId)
+      ? currentIds.filter((id) => id !== cardId)
+      : [...currentIds, cardId].sort((left, right) => left - right);
+    const nextFavoriteState = { ...activeFavoriteCardIdsByLesson, [lessonId]: nextIds };
+    setFavoriteCardIdsByLesson(nextFavoriteState);
+    safeSave(activeReviewCardIdsByLesson, lastSession, savedFlashcardSession, nextFavoriteState);
+  };
+
+  const addCardFromList = () => {
+    if (isBaseLessonId(selectedLesson)) void addAdminCard(selectedLesson);
+    else void addCustomLessonCard(selectedLesson);
+  };
+
+  const deleteCardFromList = (card: Flashcard, displayNumber: number) => {
+    if (isBaseLessonId(selectedLesson)) void deleteAdminCard(selectedLesson, card, displayNumber);
+    else void deleteCustomLessonCard(selectedLesson, card.id);
+  };
+
   const lessonLabel = (lessonId: LessonId) => LESSONS[lessonId as BaseLessonId]?.label
     ?? (() => {
       const lesson = addedLessons.find((item) => item.id === lessonId);
@@ -1375,6 +1624,11 @@ export default function Home() {
       {isOpen && (
         <div className="mode-panel__content" id={contentId}>
           {cards.length > 0 ? <>
+            {savedFlashcardSession?.lessonId === lesson.id && (
+              <button className="resume-session-button" onClick={resumeSession} data-testid={`resume-${lesson.id}`}>
+                ▶ 途中から再開 <small>Q{String(savedFlashcardSession.currentIndex + 1).padStart(2, "0")}から</small>
+              </button>
+            )}
             <div className="mode-grid">
               <button className="mode-card mode-card--primary" onClick={() => startSession(lesson.id, "all")} data-testid={`start-all-${lesson.id}`}>
                 <span className="mode-card__number">{cards.length}</span><span><strong>全{cards.length}問</strong><small>講義内容を一周する</small></span><span className="mode-card__arrow" aria-hidden="true">→</span>
@@ -1425,10 +1679,28 @@ export default function Home() {
               <span className="youtube-play-mark" aria-hidden="true" />
             </a>
           )}
+          {lessonResources.filter((resource) => resource.lessonId === lessonId).map((resource) => (
+            <a
+              className={`lesson-resource-icon lesson-resource-icon--${resource.kind}`}
+              href={resource.url}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`${resource.label || (resource.kind === "image" ? "画像資料" : "資料")}を開く`}
+              title={resource.label || (resource.kind === "image" ? "画像資料を開く" : "資料を開く")}
+              key={resource.id}
+            >
+              {resource.kind === "image" ? "▧" : "↗"}
+            </a>
+          ))}
         </div>
 
         {isOpen && (
           <div className="mode-panel__content" id={contentId}>
+            {savedFlashcardSession?.lessonId === lessonId && (
+              <button className="resume-session-button" onClick={resumeSession} data-testid={`resume-${lessonId}`}>
+                ▶ 途中から再開 <small>Q{String(savedFlashcardSession.currentIndex + 1).padStart(2, "0")}から</small>
+              </button>
+            )}
             <div className="mode-grid">
               <button
                 className="mode-card mode-card--primary"
@@ -1468,9 +1740,6 @@ export default function Home() {
               }}
             >
               <span aria-hidden="true">☰</span> 問題一覧を見る
-            </button>
-            <button className="text-button lesson-image-button" onClick={() => { setSelectedLesson(lessonId); setScreen("list"); }}>
-              <span aria-hidden="true">▧</span> 画像
             </button>
           </div>
         )}
@@ -1579,6 +1848,13 @@ export default function Home() {
                 <strong>{lastSession.rank}</strong>
               </p>
             )}
+            <button
+              className="favorite-menu-button"
+              onClick={() => setScreen("favorites")}
+              data-testid="open-favorites"
+            >
+              <span aria-hidden="true">★</span> お気に入り <strong>{favoriteCards.length}</strong>枚
+            </button>
             <button
               className="admin-entry-button"
               onClick={openAdminLogin}
@@ -1833,9 +2109,27 @@ export default function Home() {
               <p className="section-kicker">ADDED LESSONS</p>
               <h3>追加した授業の問題</h3>
               {addedLessons.map((lesson) => (
-                <details className="admin-custom-lesson" key={lesson.id}>
+                <details
+                  className="admin-custom-lesson"
+                  key={lesson.id}
+                  draggable
+                  onDragStart={() => setDraggedLessonId(lesson.id)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => { if (draggedLessonId) void reorderLessons(draggedLessonId, lesson.id); setDraggedLessonId(null); }}
+                >
                   <summary>{lesson.date}　{lesson.teacher}　{lesson.title}<span>＋</span></summary>
                   <div>
+                    {lessonEditDraft?.id === lesson.id ? (
+                      <div className="admin-meta-fields">
+                        <label>日付<input value={lessonEditDraft.date} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, date: event.target.value })} /></label>
+                        <label>先生名<input value={lessonEditDraft.teacher} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, teacher: event.target.value })} /></label>
+                        <label>授業タイトル<input value={lessonEditDraft.title} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, title: event.target.value })} /></label>
+                        <label>動画URL<input type="url" value={lessonEditDraft.videoUrl} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, videoUrl: event.target.value })} /></label>
+                        <div className="admin-card-actions"><button type="button" className="admin-save-button" onClick={saveLessonMetadata} disabled={adminBusyCard !== null}>授業情報を保存</button><button type="button" className="text-button" onClick={() => setLessonEditDraft(null)}>キャンセル</button></div>
+                      </div>
+                    ) : (
+                      <div className="admin-card-actions"><button type="button" className="text-button" onClick={() => setLessonEditDraft({ ...lesson })}>授業情報を編集</button><button type="button" className="admin-delete-button" onClick={() => void deleteLessonMetadata(lesson)} disabled={adminBusyCard !== null}>授業を削除</button></div>
+                    )}
                     <button type="button" className="admin-save-button" onClick={() => addCustomLessonCard(lesson.id)} disabled={adminBusyCard !== null}>＋ 問題を追加</button>
                     {(customLessonCards[lesson.id] ?? []).map((card, cardIndex) => (
                       <div className="custom-card-edit" key={card.id} draggable onDragStart={() => setDraggedCard({ lessonId: lesson.id, cardId: card.id })} onDragOver={(event) => event.preventDefault()} onDrop={() => dropCard(lesson.id, card.id)}>
@@ -2142,6 +2436,15 @@ export default function Home() {
                   <strong>
                     Q{String(flashcardNumber(selectedLesson, currentCard.id)).padStart(2, "0")}
                   </strong>
+                  <button
+                    type="button"
+                    className={`favorite-toggle favorite-toggle--session${favoriteSet.has(currentCard.id) ? " favorite-toggle--active" : ""}`}
+                    onClick={() => toggleFavoriteCard(selectedLesson, currentCard.id)}
+                    aria-pressed={favoriteSet.has(currentCard.id)}
+                    data-testid="toggle-favorite-session"
+                  >
+                    <span aria-hidden="true">★</span> {favoriteSet.has(currentCard.id) ? "お気に入り済み" : "お気に入りに追加"}
+                  </button>
                 </div>
 
                 {revealed ? (
@@ -2211,6 +2514,10 @@ export default function Home() {
                 <small>→</small>
               </button>
             </div>
+          </div>
+          <div className="session-nav" aria-label="カード移動">
+            <button type="button" className="text-button" onClick={() => moveSessionCard(-1)} disabled={cardIndex === 0 || isAdvancing || sessionEditField !== null}>← 前のカード</button>
+            <button type="button" className="text-button" onClick={() => moveSessionCard(1)} disabled={cardIndex >= sessionCards.length - 1 || isAdvancing || sessionEditField !== null}>次のカード →</button>
           </div>
         </section>
       )}
@@ -2365,6 +2672,44 @@ export default function Home() {
         </section>
       )}
 
+      {screen === "favorites" && (
+        <section className="screen screen--list screen--favorites" aria-labelledby="favorites-title">
+          <div className="list-top">
+            <button className="icon-button" onClick={() => setScreen("home")} aria-label="ホームへ戻る">←</button>
+            <div>
+              <p className="section-kicker">MY FAVORITES</p>
+              <h2 id="favorites-title">お気に入り</h2>
+            </div>
+            <span className="review-count"><strong>{favoriteCards.length}</strong>枚</span>
+          </div>
+          <p className="list-lead">気になった問題を授業をまたいでまとめて確認できます。</p>
+          {favoriteCards.length === 0 ? (
+            <p className="empty-state">お気に入りに追加した問題はここに並びます。</p>
+          ) : (
+            <div className="question-list">
+              {favoriteCards.map(({ lessonId, card }) => (
+                <details className="question-row question-row--favorite" key={`${lessonId}-${card.id}`}>
+                  <summary>
+                    <span className="question-number">★</span>
+                    <span><small className="favorite-lesson-label">{lessonLabel(lessonId)}</small><MahjongText text={card.question} /></span>
+                    <span className="chevron" aria-hidden="true">＋</span>
+                  </summary>
+                  <div className="list-answer">
+                    <span>ANSWER</span>
+                    <p><MahjongText text={card.answer} /></p>
+                    <div className="list-card-actions">
+                      <button type="button" className="list-edit-button" onClick={() => { setSelectedLesson(lessonId); setScreen("list"); }}>この授業の問題一覧へ</button>
+                      <button type="button" className="list-delete-button" onClick={() => toggleFavoriteCard(lessonId, card.id)}>お気に入りから外す</button>
+                    </div>
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
+          <button className="sticky-home-button" onClick={() => setScreen("home")}>ホームへ戻る</button>
+        </section>
+      )}
+
       {screen === "list" && (
         <section className="screen screen--list" aria-labelledby="list-title">
           <div className="list-top">
@@ -2385,6 +2730,13 @@ export default function Home() {
             <span className="review-dot" /> は「解き直しに追加」したカードです。
           </p>
 
+          <div className="list-toolbar">
+            <button className="primary-button list-add-button" type="button" onClick={addCardFromList} disabled={adminBusyCard !== null} data-testid="add-card-from-list">
+              ＋ 問題を追加
+            </button>
+            <span>ドラッグで順番を変更できます</span>
+          </div>
+
           <div className="question-list">
             {cardsByLesson[selectedLesson].map((card, cardNumber) => (
               <details
@@ -2399,6 +2751,17 @@ export default function Home() {
                   <span className="question-number">↕ Q{String(cardNumber + 1).padStart(2, "0")}</span>
                   <span><MahjongText text={card.question} /></span>
                   {reviewSet.has(card.id) && <span className="review-tag">解き直し</span>}
+                  <button
+                    type="button"
+                    className={`favorite-toggle favorite-toggle--list${favoriteSet.has(card.id) ? " favorite-toggle--active" : ""}`}
+                    onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleFavoriteCard(selectedLesson, card.id); }}
+                    aria-pressed={favoriteSet.has(card.id)}
+                    aria-label={favoriteSet.has(card.id) ? `Q${cardNumber + 1}をお気に入りから外す` : `Q${cardNumber + 1}をお気に入りに追加`}
+                    title={favoriteSet.has(card.id) ? "お気に入りから外す" : "お気に入りに追加"}
+                    data-testid={`toggle-favorite-list-${card.id}`}
+                  >
+                    ★
+                  </button>
                   <span className="chevron" aria-hidden="true">＋</span>
                 </summary>
                 <div className="list-answer">
@@ -2419,7 +2782,17 @@ export default function Home() {
                   ) : <>
                     <span>ANSWER</span>
                     <p><MahjongText text={card.answer} /></p>
-                    <button type="button" className="list-edit-button" onClick={() => beginListEdit(card)}>✎ 編集</button>
+                    <div className="list-card-actions">
+                      <button type="button" className="list-edit-button" onClick={() => beginListEdit(card)}>✎ 編集</button>
+                      <button
+                        type="button"
+                        className="list-delete-button"
+                        onClick={() => deleteCardFromList(card, cardNumber + 1)}
+                        disabled={adminBusyCard !== null}
+                      >
+                        {isBaseLessonId(selectedLesson) && adminPendingDelete === `card-${selectedLesson}-${card.id}` ? "削除を確定" : "削除"}
+                      </button>
+                    </div>
                   </>}
                 </div>
               </details>

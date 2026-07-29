@@ -975,6 +975,26 @@ summary:focus-visible {
   margin-top: 14px;
 }
 
+.resume-session-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  border: 1px solid rgba(8, 113, 95, 0.24);
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: #e4f8ef;
+  color: #08715f;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.resume-session-button small {
+  color: rgba(8, 113, 95, 0.72);
+  font-size: 0.72rem;
+}
+
 .mode-card {
   display: grid;
   grid-template-columns: 50px 1fr auto;
@@ -1061,6 +1081,27 @@ summary:focus-visible {
   justify-content: space-between;
   gap: 10px;
   margin-top: auto;
+}
+
+.favorite-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 1px solid #f2c66b;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #fff9e9;
+  color: #9a6812;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.favorite-menu-button strong {
+  min-width: 22px;
+  text-align: center;
 }
 
 .text-button {
@@ -1223,7 +1264,7 @@ summary:focus-visible {
 }
 
 .card-meta--minimal {
-  justify-content: flex-end;
+  justify-content: space-between;
 }
 
 .card-meta strong {
@@ -1466,6 +1507,37 @@ summary:focus-visible {
   cursor: pointer;
 }
 
+.favorite-toggle {
+  border: 1px solid #d8c99c;
+  border-radius: 999px;
+  background: #fffdf6;
+  color: #8a7a50;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.favorite-toggle--session {
+  min-height: 30px;
+  padding: 4px 9px;
+  font-size: 0.67rem;
+  letter-spacing: 0;
+}
+
+.favorite-toggle--list {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #c7a23d;
+  font-size: 1rem;
+}
+
+.favorite-toggle--active {
+  border-color: #efb846;
+  background: #fff1bf;
+  color: #b77708;
+}
+
 .session-edit-actions {
   display: flex;
   gap: 10px;
@@ -1564,6 +1636,17 @@ summary:focus-visible {
   cursor: not-allowed;
   filter: grayscale(0.85);
   opacity: 0.32;
+}
+
+.session-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.session-nav .text-button {
+  min-height: 42px;
 }
 
 /* Multiple choice quiz */
@@ -2142,9 +2225,13 @@ summary:focus-visible {
   border-color: rgba(151, 117, 211, 0.56);
 }
 
+.question-row--favorite {
+  border-color: rgba(235, 181, 67, 0.58);
+}
+
 .question-row summary {
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 10px;
   min-height: 64px;
@@ -2240,6 +2327,62 @@ summary:focus-visible {
   font-size: 0.82rem;
   font-weight: 900;
   cursor: pointer;
+}
+
+.list-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.list-card-actions .list-edit-button {
+  margin-top: 0;
+}
+
+.list-delete-button {
+  border: 1px solid #efb6a7;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #fff4f0;
+  color: #b34e36;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.list-delete-button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 14px;
+}
+
+.list-toolbar > span {
+  color: #47746a;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.list-add-button {
+  min-height: 42px;
+  padding-inline: 15px;
+  font-size: 0.82rem;
+}
+
+.favorite-lesson-label {
+  display: block;
+  margin-bottom: 3px;
+  color: #8a6723;
+  font-size: 0.64rem;
+  font-weight: 900;
 }
 
 .list-card-editor {
@@ -2505,7 +2648,7 @@ summary:focus-visible {
   }
 
   .question-row summary {
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
   }
 
   .admin-lesson-tabs {
@@ -2530,8 +2673,13 @@ summary:focus-visible {
   }
 
   .chevron {
-    grid-column: 3;
+    grid-column: 4;
     grid-row: 1 / span 2;
+  }
+
+  .favorite-toggle--list {
+    grid-column: 3;
+    grid-row: 1;
   }
 }
 

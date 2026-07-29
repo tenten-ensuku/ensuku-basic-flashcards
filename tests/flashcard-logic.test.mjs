@@ -17,8 +17,8 @@ import {
   updateReviewIds,
 } from "../app/lib/flashcards.mjs";
 
-test("ships three flashcard lessons as ver35", () => {
-  assert.equal(APP_VERSION, 35);
+test("ships three flashcard lessons as ver39", () => {
+  assert.equal(APP_VERSION, 39);
   assert.equal(STORAGE_KEY, "ensuku-basic-flashcards-v4");
   assert.equal(LEGACY_STORAGE_KEY, "ensuku-basic-flashcards-v3");
   assert.equal(FLASHCARDS.length, 50);
@@ -151,24 +151,34 @@ test("uses the exact rank boundaries", () => {
 });
 
 test("recovers safely from unavailable or malformed saved data", () => {
-  const empty = { reviewCardIdsByLesson: { tenten0718: [], tenten: [], nejimaki: [] }, lastSession: null };
+  const empty = {
+    reviewCardIdsByLesson: { tenten0718: [], tenten: [], nejimaki: [] },
+    favoriteCardIdsByLesson: { tenten0718: [], tenten: [], nejimaki: [] },
+    lastSession: null,
+    session: null,
+  };
   assert.deepEqual(readProgress(null), empty);
   assert.deepEqual(readProgress("{broken"), empty);
   assert.deepEqual(
     readProgress(JSON.stringify({
       reviewCardIdsByLesson: { tenten0718: [30, 31, 2], tenten: [3, 3, 50, 51, "9"], nejimaki: [25, 1, 60] },
+      favoriteCardIdsByLesson: { tenten0718: [30, 2, 31], tenten: [3, 3, 50, 51], nejimaki: [25, 1, 60] },
       lastSession: { lessonId: "nejimaki", mode: "all" },
     })),
     {
       reviewCardIdsByLesson: { tenten0718: [2, 30], tenten: [3, 50], nejimaki: [1, 25] },
+      favoriteCardIdsByLesson: { tenten0718: [2, 30], tenten: [3, 50], nejimaki: [1, 25] },
       lastSession: { lessonId: "nejimaki", mode: "all" },
+      session: null,
     },
   );
   assert.deepEqual(
     readProgress(JSON.stringify({ reviewCardIds: [3, 50], lastSession: { mode: "review" } })),
     {
       reviewCardIdsByLesson: { tenten0718: [], tenten: [3, 50], nejimaki: [] },
+      favoriteCardIdsByLesson: { tenten0718: [], tenten: [], nejimaki: [] },
       lastSession: { mode: "review" },
+      session: null,
     },
   );
   assert.equal(formatDuration(0), "0:00");

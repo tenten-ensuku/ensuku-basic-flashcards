@@ -34,9 +34,16 @@ CREATE TABLE IF NOT EXISTS lesson_titles (
   teacher TEXT NOT NULL,
   title TEXT NOT NULL,
   video_url TEXT NOT NULL DEFAULT '',
+  deleted INTEGER NOT NULL DEFAULT 0 CHECK (deleted IN (0, 1)),
+  sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )
 `;
+
+export const LESSON_TITLES_MIGRATION_SQL = [
+  "ALTER TABLE lesson_titles ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE lesson_titles ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
+];
 
 export const LESSON_RESOURCES_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS lesson_resources (

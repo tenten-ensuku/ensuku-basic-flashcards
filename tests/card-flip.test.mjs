@@ -40,6 +40,17 @@ test("rating is available only on the answer face and resets for the next card",
   assert.match(pageSource, /setCardIndex\(\(index\) => index \+ 1\);\s*setRevealed\(false\);/);
 });
 
+test("flashcard sessions can resume and move to adjacent cards", () => {
+  assert.match(pageSource, /type SavedFlashcardSession =/);
+  assert.match(pageSource, /setSavedFlashcardSession\(stored\.session as SavedFlashcardSession \| null\)/);
+  assert.match(pageSource, /const resumeSession = useCallback/);
+  assert.match(pageSource, /data-testid=\{`resume-\$\{lessonId\}`\}/);
+  assert.match(pageSource, /const moveSessionCard = useCallback/);
+  assert.match(sessionSource, /← 前のカード/);
+  assert.match(sessionSource, /次のカード →/);
+  assert.match(pageSource, /persistFlashcardSession\(nextIndex, false\)/);
+});
+
 test("progress counts the current card without half-step reveal progress", () => {
   assert.match(
     pageSource,

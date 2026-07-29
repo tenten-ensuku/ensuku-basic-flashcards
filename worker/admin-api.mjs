@@ -1,6 +1,7 @@
 import {
   FLASHCARD_ADDITIONS_SCHEMA_SQL,
   LESSON_TITLES_SCHEMA_SQL,
+  LESSON_TITLES_MIGRATION_SQL,
   LESSON_RESOURCES_SCHEMA_SQL,
   CUSTOM_LESSON_CARDS_SCHEMA_SQL,
   FLASHCARD_ORDER_SCHEMA_SQL,
@@ -46,6 +47,9 @@ async function ensureSchema(db) {
   }
   await db.prepare(FLASHCARD_ADDITIONS_SCHEMA_SQL).run();
   await db.prepare(LESSON_TITLES_SCHEMA_SQL).run();
+  for (const statement of LESSON_TITLES_MIGRATION_SQL) {
+    try { await db.prepare(statement).run(); } catch { /* already migrated */ }
+  }
   await db.prepare(LESSON_RESOURCES_SCHEMA_SQL).run();
   await db.prepare(CUSTOM_LESSON_CARDS_SCHEMA_SQL).run();
   await db.prepare(FLASHCARD_ORDER_SCHEMA_SQL).run();
@@ -133,7 +137,7 @@ export async function handleAdminApi(request, env) {
       "SELECT quiz_id, question_id, question, options_json, correct_index, explanation, deleted, updated_at FROM quiz_overrides ORDER BY quiz_id, question_id",
     ).all();
     const lessonResult = await env.DB.prepare(
-      "SELECT lesson_id, lesson_date, teacher, title, video_url FROM lesson_titles ORDER BY lesson_date DESC, created_at DESC",
+      "SELECT lesson_id, lesson_date, teacher, title, video_url, deleted, sort_order FROM lesson_titles WHERE deleted = 0 ORDER BY sort_order, lesson_date DESC, created_at DESC",
     ).all();
     const resourceResult = await env.DB.prepare(
       "SELECT resource_id, lesson_id, kind, label, url, sort_order FROM lesson_resources ORDER BY lesson_id, sort_order, created_at",
@@ -186,6 +190,7 @@ export async function handleAdminApi(request, env) {
       teacher: row.teacher,
       title: row.title,
       videoUrl: row.video_url,
+      sortOrder: row.sort_order,
     }));
     const resources = (resourceResult.results ?? []).map((row) => ({
       id: row.resource_id,
@@ -218,9 +223,11 @@ export async function handleAdminApi(request, env) {
     }
     if (videoUrl && !/^https?:\/\//i.test(videoUrl)) return json(request, { error: "動画URLは https:// または http:// で入力してください。" }, 400);
     const id = `lesson-${crypto.randomUUID()}`;
+    const maxOrder = await env.DB.prepare("SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM lesson_titles WHERE deleted = 0").all();
+    const sortOrder = Number(maxOrder.results?.[0]?.max_order ?? -1) + 1;
     await env.DB.prepare(
-      "INSERT INTO lesson_titles (lesson_id, lesson_date, teacher, title, video_url) VALUES (?, ?, ?, ?, ?)",
-    ).bind(id, date, teacher, title, videoUrl).run();
+      "INSERT INTO lesson_titles (lesson_id, lesson_date, teacher, title, video_url, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+    ).bind(id, date, teacher, title, videoUrl, sortOrder).run();
     for (let index = 0; index < resources.length; index += 1) {
       const resource = resources[index];
       const kind = resource?.kind === "image" ? "image" : "link";
@@ -231,7 +238,44 @@ export async function handleAdminApi(request, env) {
         "INSERT INTO lesson_resources (resource_id, lesson_id, kind, label, url, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
       ).bind(`resource-${crypto.randomUUID()}`, id, kind, label.slice(0, 160), url, index).run();
     }
-    return json(request, { ok: true, lesson: { id, date, teacher, title, videoUrl } });
+    return json(request, { ok: true, lesson: { id, date, teacher, title, videoUrl, sortOrder } });
+  }
+
+  const lessonPath = url.pathname.match(/^\/api\/admin\/lessons\/([^/]+)$/i);
+  if (lessonPath && lessonPath[1].toLowerCase() !== "order") {
+    const lessonId = lessonPath[1];
+    if (request.method === "PUT") {
+      let body;
+      try { body = await request.json(); } catch { body = {}; }
+      const date = typeof body?.date === "string" ? body.date.trim() : "";
+      const teacher = typeof body?.teacher === "string" ? body.teacher.trim() : "";
+      const title = typeof body?.title === "string" ? body.title.trim() : "";
+      const videoUrl = typeof body?.videoUrl === "string" ? body.videoUrl.trim() : "";
+      if (!date || !teacher || !title) return json(request, { error: "日付・先生名・授業タイトルを入力してください。" }, 400);
+      if (videoUrl && !/^https?:\/\//i.test(videoUrl)) return json(request, { error: "動画URLは https:// または http:// で入力してください。" }, 400);
+      await env.DB.prepare(`
+        INSERT INTO lesson_titles (lesson_id, lesson_date, teacher, title, video_url, deleted, sort_order)
+        VALUES (?, ?, ?, ?, ?, 0, COALESCE((SELECT sort_order FROM lesson_titles WHERE lesson_id = ?), 0))
+        ON CONFLICT(lesson_id) DO UPDATE SET lesson_date = excluded.lesson_date, teacher = excluded.teacher, title = excluded.title, video_url = excluded.video_url, deleted = 0
+      `).bind(lessonId, date, teacher, title, videoUrl, lessonId).run();
+      return json(request, { ok: true, lesson: { id: lessonId, date, teacher, title, videoUrl } });
+    }
+    if (request.method === "DELETE") {
+      await env.DB.prepare("UPDATE lesson_titles SET deleted = 1 WHERE lesson_id = ?").bind(lessonId).run();
+      return json(request, { ok: true, deleted: true });
+    }
+    return json(request, { error: "対応していない操作です。" }, 405);
+  }
+
+  if (url.pathname === "/api/admin/lessons/order" && request.method === "PUT") {
+    let body;
+    try { body = await request.json(); } catch { body = {}; }
+    const lessonIds = Array.isArray(body?.lessonIds) ? body.lessonIds.filter((id) => typeof id === "string" && id.length <= 200) : [];
+    if (!lessonIds.length || new Set(lessonIds).size !== lessonIds.length) return json(request, { error: "授業の並び順が正しくありません。" }, 400);
+    for (let index = 0; index < lessonIds.length; index += 1) {
+      await env.DB.prepare("UPDATE lesson_titles SET sort_order = ? WHERE lesson_id = ?").bind(index, lessonIds[index]).run();
+    }
+    return json(request, { ok: true, lessonIds });
   }
 
   const orderPath = url.pathname.match(/^\/api\/admin\/(?:cards\/(tenten0718|tenten|nejimaki)|lessons\/(lesson-[a-f0-9-]+)\/cards)\/order$/i);

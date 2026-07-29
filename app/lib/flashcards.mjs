@@ -1,4 +1,4 @@
-export const APP_VERSION = 35;
+export const APP_VERSION = 39;
 export const STORAGE_KEY = "ensuku-basic-flashcards-v4";
 export const LEGACY_STORAGE_KEY = "ensuku-basic-flashcards-v3";
 
@@ -235,7 +235,12 @@ export function formatDuration(seconds) {
 }
 
 export function readProgress(raw) {
-  const empty = { reviewCardIdsByLesson: { tenten0718: [], tenten: [], nejimaki: [] }, lastSession: null };
+  const empty = {
+    reviewCardIdsByLesson: { tenten0718: [], tenten: [], nejimaki: [] },
+    favoriteCardIdsByLesson: { tenten0718: [], tenten: [], nejimaki: [] },
+    lastSession: null,
+    session: null,
+  };
   if (!raw) return empty;
   try {
     const parsed = JSON.parse(raw);
@@ -249,7 +254,13 @@ export function readProgress(raw) {
         tenten: sanitize(parsed.reviewCardIdsByLesson?.tenten ?? legacyTentenIds, FLASHCARDS.length),
         nejimaki: sanitize(parsed.reviewCardIdsByLesson?.nejimaki, NEJIMAKI_FLASHCARDS.length),
       },
+      favoriteCardIdsByLesson: {
+        tenten0718: sanitize(parsed.favoriteCardIdsByLesson?.tenten0718, SIX_TILE_FLASHCARDS.length),
+        tenten: sanitize(parsed.favoriteCardIdsByLesson?.tenten, FLASHCARDS.length),
+        nejimaki: sanitize(parsed.favoriteCardIdsByLesson?.nejimaki, NEJIMAKI_FLASHCARDS.length),
+      },
       lastSession: parsed.lastSession && typeof parsed.lastSession === "object" ? parsed.lastSession : null,
+      session: parsed.session && typeof parsed.session === "object" ? parsed.session : null,
     };
   } catch {
     return empty;

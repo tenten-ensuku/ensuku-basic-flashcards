@@ -31,7 +31,7 @@ test("renders the production flashcard home screen", async () => {
   assert.match(html, /<html lang="ja">/i);
   assert.match(html, /<title>一向聴 基礎講義フラッシュカード<\/title>/i);
   assert.match(html, /授業の復習に/);
-  assert.match(html, /ver(?:<!-- -->)?35/);
+  assert.match(html, /ver(?:<!-- -->)?39/);
   assert.match(html, /7\/16　ねじまき鳥先生/);
   assert.match(html, /基本序列マスタークイズ/);
   assert.match(html, /https:\/\/youtu\.be\/NE1UHrZkg6g/);
@@ -57,6 +57,7 @@ test("renders the production flashcard home screen", async () => {
   assert.doesNotMatch(html, /全(?:<!-- -->)?50(?:<!-- -->)?問/);
   assert.doesNotMatch(html, /解き直しカード/);
   assert.match(html, /管理画面/);
+  assert.match(html, /お気に入り/);
   assert.equal(html.indexOf("7/18　てんてん先生") < html.indexOf("7/16　ねじまき鳥先生"), true);
   assert.equal(html.indexOf("7/16　ねじまき鳥先生") < html.indexOf("7/14　てんてん先生　基礎講義復習"), true);
   assert.equal(html.indexOf("7/14　てんてん先生　基礎講義復習") < html.indexOf("7/2　ねじまき鳥先生　基礎講義②"), true);
