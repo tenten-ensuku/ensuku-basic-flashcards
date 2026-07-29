@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const title = "一向聴 基礎講義フラッシュカード";
+const title = "授業復習～瀬利さりな～";
 const description =
   "麻雀の基礎講義を、4択30問の基本序列クイズと3授業・全130問のフラッシュカードで復習できる無料ドリル。";
 

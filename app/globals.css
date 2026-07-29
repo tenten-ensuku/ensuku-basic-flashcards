@@ -1071,6 +1071,18 @@ summary:focus-visible {
   color: #44357f;
 }
 
+.mode-card--favorite {
+  border-color: rgba(233, 175, 58, 0.34);
+  background: linear-gradient(135deg, #fff6cb, #ffd66e 78%);
+  color: #85550d;
+}
+
+.mode-card--favorite-list {
+  border-color: rgba(22, 127, 108, 0.24);
+  background: linear-gradient(135deg, #e8fff7, #a9ead8 78%);
+  color: #17695d;
+}
+
 .mode-card:disabled {
   cursor: not-allowed;
   filter: grayscale(0.12);

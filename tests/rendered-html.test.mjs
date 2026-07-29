@@ -29,9 +29,9 @@ test("renders the production flashcard home screen", async () => {
 
   const html = await response.text();
   assert.match(html, /<html lang="ja">/i);
-  assert.match(html, /<title>一向聴 基礎講義フラッシュカード<\/title>/i);
-  assert.match(html, /授業の復習に/);
-  assert.match(html, /ver(?:<!-- -->)?44/);
+  assert.match(html, /<title>授業復習～瀬利さりな～<\/title>/i);
+  assert.match(html, /授業復習～瀬利さりな～/);
+  assert.match(html, /ver(?:<!-- -->)?45/);
   assert.match(html, /7\/16　ねじまき鳥先生/);
   assert.match(html, /基本序列マスタークイズ/);
   assert.match(html, /https:\/\/youtu\.be\/NE1UHrZkg6g/);
@@ -44,6 +44,7 @@ test("renders the production flashcard home screen", async () => {
   assert.match(html, /https:\/\/www\.youtube\.com\/watch\?v=kBN6h2-U0rQ/);
   assert.equal((html.match(/class="youtube-icon-button"/g) ?? []).length, 4);
   assert.match(html, /data-testid="toggle-lesson-tenten0718"/);
+  assert.match(html, /data-testid="toggle-favorites-section"/);
   assert.match(html, /data-testid="toggle-quiz-section"/);
   assert.match(html, /7\/16　ねじまき鳥先生(?:<!-- -->)?　(?:<!-- -->)?基本序列マスタークイズ/);
   assert.match(html, /data-testid="toggle-lesson-tenten"/);
@@ -67,7 +68,7 @@ test("renders the production flashcard home screen", async () => {
 test("publishes the expected social metadata", async () => {
   const response = await render();
   const html = await response.text();
-  assert.match(html, /property="og:title" content="一向聴 基礎講義フラッシュカード"/);
+  assert.match(html, /property="og:title" content="授業復習～瀬利さりな～"/);
   assert.match(
     html,
     /property="og:image" content="https:\/\/ensuku-basic-flashcards\.kobotenmitsu\.chatgpt\.site\/og-card\.png"/,

@@ -31,6 +31,7 @@ type ListEditDraft = Flashcard | null;
 type BaseLessonId = keyof typeof LESSONS;
 type LessonId = BaseLessonId | string;
 type Flashcard = { id: number; question: string; answer: string };
+type SessionFlashcard = Flashcard & { sourceLessonId?: LessonId; sourceCardId?: number };
 type CardsByLesson = Record<string, Flashcard[]>;
 type CardOverride = Flashcard & { lessonId: BaseLessonId; deleted?: boolean };
 type AddedLesson = { id: string; date: string; teacher: string; title: string; videoUrl: string; sortOrder?: number };
@@ -105,6 +106,13 @@ const SUITS: Record<Suit, { prefix: string; label: string }> = {
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const ADMIN_API_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? "";
 const DEFAULT_APP_ICON_URL = `${BASE_PATH}/icons/serina.png`;
+const FAVORITES_SESSION_ID = "__favorites__";
+
+function favoriteSessionCardId(lessonId: string, cardId: number) {
+  let hash = 0;
+  for (const character of lessonId) hash = ((hash * 31) + character.charCodeAt(0)) % 1_000_000;
+  return (hash * 1_000_000_000) + cardId;
+}
 
 function cloneBaseCards(): CardsByLesson {
   return {
@@ -291,7 +299,7 @@ function safeSave(
 function createSavedFlashcardSession(
   lessonId: LessonId,
   mode: SessionMode,
-  cards: readonly Flashcard[],
+  cards: readonly SessionFlashcard[],
   currentIndex: number,
   revealed: boolean,
   ratings: Record<number, Rating>,
@@ -344,7 +352,7 @@ function HomeHeader({ compact = false, iconUrl = DEFAULT_APP_ICON_URL }: { compa
       </div>
       <div>
         <p className="brand__eyebrow">ENSUKU BASIC LECTURE</p>
-        <h1 id={compact ? undefined : "app-title"}>授業の復習に</h1>
+        <h1 id={compact ? undefined : "app-title"}>授業復習～瀬利さりな～</h1>
       </div>
       <span className="version">ver{APP_VERSION}</span>
     </header>
@@ -408,7 +416,7 @@ export default function Home() {
   const [selectedLesson, setSelectedLesson] = useState<LessonId>("tenten0718");
   const [openHomeSection, setOpenHomeSection] = useState<HomeSectionId | null>(null);
   const [sessionMode, setSessionMode] = useState<SessionMode>("all");
-  const [sessionCards, setSessionCards] = useState<Flashcard[]>([]);
+  const [sessionCards, setSessionCards] = useState<SessionFlashcard[]>([]);
   const [sessionEditField, setSessionEditField] = useState<SessionEditField>(null);
   const [sessionEditText, setSessionEditText] = useState("");
   const [listEditDraft, setListEditDraft] = useState<ListEditDraft>(null);
@@ -575,10 +583,20 @@ export default function Home() {
     const ids = new Set(activeFavoriteCardIdsByLesson[lessonId] ?? []);
     return cards.filter((card) => ids.has(card.id)).map((card) => ({ lessonId, card }));
   }), [activeFavoriteCardIdsByLesson, cardsByLesson]);
+  const favoriteSessionCards = useMemo<SessionFlashcard[]>(() => favoriteCards.map(({ lessonId, card }) => ({
+    ...card,
+    id: favoriteSessionCardId(lessonId, card.id),
+    sourceLessonId: lessonId,
+    sourceCardId: card.id,
+  })), [favoriteCards]);
   const currentCard = sessionCards[cardIndex];
+  const currentCardLessonId = currentCard?.sourceLessonId ?? selectedLesson;
+  const currentCardId = currentCard?.sourceCardId ?? currentCard?.id;
+  const currentCardIsFavorite = currentCardId !== undefined
+    && (activeFavoriteCardIdsByLesson[currentCardLessonId] ?? []).includes(currentCardId);
   const currentQuizQuestion = quizQuestions[quizIndex];
   const flashcardNumber = (lessonId: LessonId, cardId: number) =>
-    cardsByLesson[lessonId].findIndex((card) => card.id === cardId) + 1;
+    (cardsByLesson[lessonId]?.findIndex((card) => card.id === cardId) ?? -1) + 1;
   const quizQuestionNumber = (questionId: number) =>
     quizBank.findIndex((question) => question.id === questionId) + 1;
   const currentQuizAnswer = quizAnswers.find((answer) => answer.questionId === currentQuizQuestion?.id);
@@ -647,9 +665,34 @@ export default function Home() {
     [activeReviewCardIdsByLesson, cardsByLesson, lastSession],
   );
 
+  const startFavoriteSession = useCallback(() => {
+    if (!favoriteSessionCards.length) return;
+    const cards = favoriteSessionCards.map((card) => ({ ...card }));
+    setSelectedLesson(FAVORITES_SESSION_ID);
+    setSessionMode("all");
+    setSessionCards(cards);
+    setSessionEditField(null);
+    setSessionEditText("");
+    setCardIndex(0);
+    setRevealed(false);
+    setKnownCount(0);
+    setAgainCount(0);
+    setSessionRatings({});
+    setElapsedSeconds(0);
+    setIsAdvancing(false);
+    resultRef.current = null;
+    startedAtRef.current = Date.now();
+    const initialSession = createSavedFlashcardSession(FAVORITES_SESSION_ID, "all", cards, 0, false, {}, 0);
+    setSavedFlashcardSession(initialSession);
+    safeSave(activeReviewCardIdsByLesson, lastSession, initialSession);
+    setScreen("session");
+  }, [activeReviewCardIdsByLesson, favoriteSessionCards, lastSession]);
+
   const resumeSession = useCallback(() => {
     if (!savedFlashcardSession) return;
-    const sourceCards = cardsByLesson[savedFlashcardSession.lessonId] ?? [];
+    const sourceCards = savedFlashcardSession.lessonId === FAVORITES_SESSION_ID
+      ? favoriteSessionCards
+      : cardsByLesson[savedFlashcardSession.lessonId] ?? [];
     const cards = savedFlashcardSession.cardIds.flatMap((id) => {
       const card = sourceCards.find((item) => item.id === id);
       return card ? [card] : [];
@@ -675,7 +718,7 @@ export default function Home() {
     setIsAdvancing(false);
     startedAtRef.current = Date.now() - (savedFlashcardSession.elapsedSeconds * 1000);
     setScreen("session");
-  }, [cardsByLesson, savedFlashcardSession]);
+  }, [cardsByLesson, favoriteSessionCards, savedFlashcardSession]);
 
   const startQuiz = useCallback((questions?: readonly QuizQuestion[]) => {
     const source = questions ?? quizBank;
@@ -1390,14 +1433,17 @@ export default function Home() {
       if (!revealed || isAdvancing || !currentCard) return;
       setIsAdvancing(true);
 
+      const sourceLessonId = currentCard.sourceLessonId ?? selectedLesson;
+      const sourceCardId = currentCard.sourceCardId ?? currentCard.id;
+
       const nextReviewIds = updateReviewIds(
-        activeReviewCardIdsByLesson[selectedLesson],
-        currentCard.id,
+        activeReviewCardIdsByLesson[sourceLessonId],
+        sourceCardId,
         rating,
       );
       const nextReviewCardIdsByLesson = {
         ...activeReviewCardIdsByLesson,
-        [selectedLesson]: nextReviewIds,
+        [sourceLessonId]: nextReviewIds,
       };
       const nextRatings = { ...sessionRatings, [currentCard.id]: rating };
       const nextKnown = Object.values(nextRatings).filter((value) => value === "known").length;
@@ -1706,7 +1752,8 @@ export default function Home() {
     else void deleteCustomLessonCard(selectedLesson, card.id);
   };
 
-  const lessonLabel = (lessonId: LessonId) => LESSONS[lessonId as BaseLessonId]?.label
+  const lessonLabel = (lessonId: LessonId) => lessonId === FAVORITES_SESSION_ID ? "お気に入り"
+    : LESSONS[lessonId as BaseLessonId]?.label
     ?? (() => {
       const lesson = addedLessons.find((item) => item.id === lessonId);
       return lesson ? `${lesson.date}　${lesson.teacher}　${lesson.title}` : "授業の復習";
@@ -1871,6 +1918,47 @@ export default function Home() {
         <section className="screen screen--home" aria-labelledby="app-title">
           <HomeHeader iconUrl={appIconUrl} />
 
+          <section
+            className={`favorite-launch-panel mode-panel mode-panel--collapsible ${openHomeSection === FAVORITES_SESSION_ID ? "mode-panel--open" : ""}`}
+            aria-labelledby="favorite-launch-title"
+          >
+            <div className="lesson-summary lesson-summary--favorites">
+              <button
+                className="lesson-summary__toggle"
+                type="button"
+                onClick={() => setOpenHomeSection(openHomeSection === FAVORITES_SESSION_ID ? null : FAVORITES_SESSION_ID)}
+                aria-expanded={openHomeSection === FAVORITES_SESSION_ID}
+                aria-controls="favorite-launch-content"
+                data-testid="toggle-favorites-section"
+              >
+                <span className="lesson-summary__title" id="favorite-launch-title">★ お気に入り</span>
+                <span className="review-count"><strong>{favoriteCards.length}</strong>枚</span>
+                <span className="lesson-summary__chevron" aria-hidden="true">{openHomeSection === FAVORITES_SESSION_ID ? "⌃" : "⌄"}</span>
+              </button>
+            </div>
+            {openHomeSection === FAVORITES_SESSION_ID && (
+              <div className="mode-panel__content favorite-launch-content" id="favorite-launch-content">
+                <div className="mode-grid">
+                  <button
+                    className="mode-card mode-card--favorite"
+                    onClick={startFavoriteSession}
+                    disabled={favoriteCards.length === 0}
+                    data-testid="start-favorites-session"
+                  >
+                    <span className="mode-card__number">★</span>
+                    <span><strong>フラッシュカードで解く</strong><small>{favoriteCards.length ? `${favoriteCards.length}枚をまとめて解く` : "お気に入りを追加すると使えます"}</small></span>
+                    <span className="mode-card__arrow" aria-hidden="true">→</span>
+                  </button>
+                  <button className="mode-card mode-card--favorite-list" onClick={() => setScreen("favorites")} data-testid="open-favorites">
+                    <span className="mode-card__number">☷</span>
+                    <span><strong>問題一覧を見る</strong><small>授業をまたいで確認する</small></span>
+                    <span className="mode-card__arrow" aria-hidden="true">→</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
           {addedLessons.map(renderAddedLessonPanel)}
 
           {renderLessonPanel("tenten0718")}
@@ -1964,13 +2052,6 @@ export default function Home() {
                 <strong>{lastSession.rank}</strong>
               </p>
             )}
-            <button
-              className="favorite-menu-button"
-              onClick={() => setScreen("favorites")}
-              data-testid="open-favorites"
-            >
-              <span aria-hidden="true">★</span> お気に入り <strong>{favoriteCards.length}</strong>枚
-            </button>
             <button
               className="admin-entry-button"
               onClick={openAdminLogin}
@@ -2605,16 +2686,16 @@ export default function Home() {
               >
                 <div className="card-meta card-meta--minimal">
                   <strong>
-                    Q{String(flashcardNumber(selectedLesson, currentCard.id)).padStart(2, "0")}
+                    {currentCard.sourceLessonId ? "★" : `Q${String(flashcardNumber(selectedLesson, currentCard.id)).padStart(2, "0")}`}
                   </strong>
                   <button
                     type="button"
-                    className={`favorite-toggle favorite-toggle--session${favoriteSet.has(currentCard.id) ? " favorite-toggle--active" : ""}`}
-                    onClick={() => toggleFavoriteCard(selectedLesson, currentCard.id)}
-                    aria-pressed={favoriteSet.has(currentCard.id)}
+                    className={`favorite-toggle favorite-toggle--session${currentCardIsFavorite ? " favorite-toggle--active" : ""}`}
+                    onClick={() => currentCardId !== undefined && toggleFavoriteCard(currentCardLessonId, currentCardId)}
+                    aria-pressed={currentCardIsFavorite}
                     data-testid="toggle-favorite-session"
                   >
-                    <span aria-hidden="true">★</span> {favoriteSet.has(currentCard.id) ? "お気に入り済み" : "お気に入りに追加"}
+                    <span aria-hidden="true">★</span> {currentCardIsFavorite ? "お気に入り済み" : "お気に入りに追加"}
                   </button>
                 </div>
 
