@@ -104,6 +104,7 @@ const SUITS: Record<Suit, { prefix: string; label: string }> = {
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const ADMIN_API_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? "";
+const DEFAULT_APP_ICON_URL = `${BASE_PATH}/icons/serina.png`;
 
 function cloneBaseCards(): CardsByLesson {
   return {
@@ -334,11 +335,11 @@ function createSavedQuizSession(
   };
 }
 
-function HomeHeader({ compact = false }: { compact?: boolean }) {
+function HomeHeader({ compact = false, iconUrl = DEFAULT_APP_ICON_URL }: { compact?: boolean; iconUrl?: string }) {
   return (
     <header className={compact ? "brand brand--compact" : "brand"}>
       <div className="brand__mark" aria-hidden="true">
-        <img src="/icons/serina.png" alt="" />
+        <img src={iconUrl} alt="" />
         向
       </div>
       <div>
@@ -382,6 +383,8 @@ export default function Home() {
   const [lessonEditResources, setLessonEditResources] = useState<Array<Omit<LessonResource, "id" | "lessonId">>>([]);
   const [draggedLessonId, setDraggedLessonId] = useState<string | null>(null);
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
+  const [appIconUrl, setAppIconUrl] = useState(DEFAULT_APP_ICON_URL);
+  const [appIconDraft, setAppIconDraft] = useState("");
   const [customLessonCards, setCustomLessonCards] = useState<Record<string, Flashcard[]>>({});
   const [newLessonResources, setNewLessonResources] = useState<Array<Omit<LessonResource, "id" | "lessonId">>>([]);
   const [newLesson, setNewLesson] = useState({ date: "", teacher: "", title: "", videoUrl: "" });
@@ -430,9 +433,9 @@ export default function Home() {
     fetch(adminApiPath("/api/cards"), { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("問題データを取得できませんでした。");
-        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; deletedLessons?: AddedLesson[]; resources?: LessonResource[]; customCards?: Array<Flashcard & { lessonId: string }>; cardOrders?: Array<{ lessonId: string; id: number; sortOrder: number }> }>;
+        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; deletedLessons?: AddedLesson[]; resources?: LessonResource[]; customCards?: Array<Flashcard & { lessonId: string }>; cardOrders?: Array<{ lessonId: string; id: number; sortOrder: number }>; settings?: { iconUrl?: string } }>;
       })
-      .then(({ overrides = [], quizOverrides = [], lessons = [], deletedLessons = [], resources = [], customCards = [], cardOrders = [] }) => {
+      .then(({ overrides = [], quizOverrides = [], lessons = [], deletedLessons = [], resources = [], customCards = [], cardOrders = [], settings = {} }) => {
         const nextCards = withOverrides(overrides);
         const nextCardOrder = cardOrders.reduce<Record<string, number[]>>((grouped, item) => {
           (grouped[item.lessonId] ??= []).push(item.id);
@@ -460,6 +463,8 @@ export default function Home() {
         setAddedLessons([...lessons].sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || right.date.localeCompare(left.date, "ja")));
         setDeletedLessons(deletedLessons);
         setLessonResources(resources);
+        setAppIconUrl(settings.iconUrl || DEFAULT_APP_ICON_URL);
+        setAppIconDraft(settings.iconUrl ?? "");
         setCustomLessonCards(nextCustomCards);
       })
       .catch((error: unknown) => {
@@ -1060,6 +1065,50 @@ export default function Home() {
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
     } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const saveAppIconUrl = async (nextIconUrl = appIconDraft) => {
+    const iconUrl = nextIconUrl.trim();
+    if (iconUrl && !/^https?:\/\//i.test(iconUrl)) {
+      setAdminError("アイコンURLは https:// または http:// で入力してください。");
+      return;
+    }
+    setAdminBusyCard(0);
+    setAdminError("");
+    try {
+      const response = await fetch(adminApiPath("/api/admin/settings"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ iconUrl }),
+      });
+      const payload = await response.json() as { error?: string; settings?: { iconUrl?: string } };
+      if (!response.ok || !payload.settings) throw new Error(payload.error ?? "アイコンを保存できませんでした。");
+      setAppIconUrl(payload.settings.iconUrl || DEFAULT_APP_ICON_URL);
+      setAppIconDraft(payload.settings.iconUrl ?? "");
+      setAdminNotice(iconUrl ? "アプリアイコンを保存しました。" : "標準アイコンに戻しました。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "アイコンを保存できませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const uploadAppIcon = async (file: File) => {
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
+      setAdminError("JPEG・PNG・WebP・GIF画像を選択してください。");
+      return;
+    }
+    setAdminBusyCard(0);
+    setAdminError("");
+    try {
+      const response = await fetch(adminApiPath("/api/images"), { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const payload = await response.json() as { error?: string; url?: string };
+      if (!response.ok || !payload.url) throw new Error(payload.error ?? "画像をアップロードできませんでした。");
+      await saveAppIconUrl(payload.url);
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
       setAdminBusyCard(null);
     }
   };
@@ -1820,7 +1869,7 @@ export default function Home() {
 
       {screen === "home" && (
         <section className="screen screen--home" aria-labelledby="app-title">
-          <HomeHeader />
+          <HomeHeader iconUrl={appIconUrl} />
 
           {addedLessons.map(renderAddedLessonPanel)}
 
@@ -2029,7 +2078,7 @@ export default function Home() {
 
       {screen === "quiz-result" && (
         <section className="screen screen--result" aria-labelledby="quiz-result-title">
-          <HomeHeader compact />
+          <HomeHeader compact iconUrl={appIconUrl} />
           <div className="result-panel quiz-result-panel">
             <p className="section-kicker">QUIZ COMPLETE</p>
             <h2 id="quiz-result-title">4択クイズ完了！</h2>
@@ -2138,6 +2187,25 @@ export default function Home() {
           <p className="admin-lead">
             保存した内容は公開中の問題集へ反映されます。牌表記は「2234ｍ」「456p」のように入力してください。
           </p>
+
+          <section className="admin-app-icon" aria-labelledby="app-icon-title">
+            <div className="admin-app-icon__preview"><img src={appIconUrl} alt="現在のアプリアイコン" /></div>
+            <div>
+              <p className="section-kicker">APP ICON</p>
+              <h3 id="app-icon-title">アプリアイコン</h3>
+              <p>画像URLの入力、または画像のクリック・ドラッグ＆ドロップで変更できます。</p>
+              <label>アイコン画像URL（任意）<input type="url" value={appIconDraft} placeholder="https://..." onChange={(event) => setAppIconDraft(event.target.value)} /></label>
+              <div className="admin-card-actions">
+                <button type="button" className="admin-save-button" onClick={() => void saveAppIconUrl()} disabled={adminBusyCard !== null}>アイコンを保存</button>
+                <button type="button" className="text-button" onClick={() => void saveAppIconUrl("")} disabled={adminBusyCard !== null}>標準に戻す</button>
+              </div>
+            </div>
+            <label className="image-upload image-upload--drop admin-app-icon__upload" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files?.[0]; if (file) void uploadAppIcon(file); }}>
+              画像をアップロード
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAppIcon(file); event.currentTarget.value = ""; }} />
+              <span>クリック・ドロップで差し替え</span>
+            </label>
+          </section>
 
           <section className="admin-create-lesson">
             <div>
@@ -2627,7 +2695,7 @@ export default function Home() {
 
       {screen === "result" && lastSession && (
         <section className="screen screen--result" aria-labelledby="result-title">
-          <HomeHeader compact />
+          <HomeHeader compact iconUrl={appIconUrl} />
           <div className="result-panel">
             <p className="section-kicker">SESSION COMPLETE</p>
             <h2 id="result-title">おつかれさまでした</h2>

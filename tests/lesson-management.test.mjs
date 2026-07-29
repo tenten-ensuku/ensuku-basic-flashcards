@@ -27,6 +27,16 @@ test("existing lessons can save and manage attached resource URLs", () => {
   assert.match(workerSource, /INSERT INTO lesson_resources/);
 });
 
+test("the app icon can be uploaded, set by URL, and shared through the API", () => {
+  assert.match(pageSource, /const \[appIconUrl, setAppIconUrl\]/);
+  assert.match(pageSource, /const saveAppIconUrl = async/);
+  assert.match(pageSource, /const uploadAppIcon = async/);
+  assert.match(pageSource, /アプリアイコン/);
+  assert.match(workerSource, /url\.pathname === "\/api\/admin\/settings" && request\.method === "PUT"/);
+  assert.match(workerSource, /app_icon_url/);
+  assert.match(workerSource, /APP_SETTINGS_SCHEMA_SQL/);
+});
+
 test("quiz editors accept image drops for both faces", () => {
   assert.match(pageSource, /const uploadQuizImage = async/);
   assert.match(pageSource, /問題に画像を追加（ドロップ・貼り付け可）/);

@@ -78,6 +78,14 @@ CREATE TABLE IF NOT EXISTS flashcard_order (
 )
 `;
 
+export const APP_SETTINGS_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS app_settings (
+  setting_key TEXT PRIMARY KEY,
+  setting_value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+`;
+
 export const QUIZ_OVERRIDES_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS quiz_overrides (
   quiz_id TEXT NOT NULL CHECK (quiz_id = 'basic-order-2026-07-16'),
