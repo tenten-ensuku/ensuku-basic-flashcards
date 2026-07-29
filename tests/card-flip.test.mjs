@@ -14,7 +14,7 @@ test("flashcard renders exactly one question or answer face", () => {
   assert.match(sessionSource, /revealed \? "card-face--answer" : "card-face--question"/);
   assert.match(
     sessionSource,
-    /\{revealed \? \(\s*<div className="answer-block"[\s\S]*?\) : \(\s*<p className="question-text">/,
+    /\{revealed \? \(\s*<div className="answer-block"[\s\S]*?\) : \(\s*<div className="question-text">/,
   );
   assert.match(sessionSource, /data-testid="show-question"/);
   assert.match(sessionSource, /問題を見る/);
@@ -71,4 +71,10 @@ test("flip styles preserve long content and reduced-motion preferences", () => {
     cssSource,
     /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.card-face\s*\{[\s\S]*?animation: none !important;/,
   );
+});
+
+test("session card images use compact spacing and valid block wrappers", () => {
+  assert.match(sessionSource, /className="card-copy"><MahjongText text=\{currentCard\.answer\}/);
+  assert.match(sessionSource, /<div className="question-text">/);
+  assert.match(cssSource, /\.flashcard \.card-image\s*\{\s*margin: 6px auto;/);
 });

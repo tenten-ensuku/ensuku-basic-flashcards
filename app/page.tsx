@@ -2833,10 +2833,10 @@ export default function Home() {
 
                 {revealed ? (
                   <div className="answer-block" data-testid="answer">
-                    {sessionEditField === "answer" ? <textarea className="session-card-editor" value={sessionEditText} onChange={(event) => setSessionEditText(event.target.value)} aria-label="解説を編集" autoFocus /> : <p><MahjongText text={currentCard.answer} /></p>}
+                    {sessionEditField === "answer" ? <textarea className="session-card-editor" value={sessionEditText} onChange={(event) => setSessionEditText(event.target.value)} aria-label="解説を編集" autoFocus /> : <div className="card-copy"><MahjongText text={currentCard.answer} /></div>}
                   </div>
                 ) : (
-                  <p className="question-text">{sessionEditField === "question" ? <textarea className="session-card-editor session-card-editor--question" value={sessionEditText} onChange={(event) => setSessionEditText(event.target.value)} aria-label="問題を編集" autoFocus /> : <MahjongText text={currentCard.question} />}</p>
+                  <div className="question-text">{sessionEditField === "question" ? <textarea className="session-card-editor session-card-editor--question" value={sessionEditText} onChange={(event) => setSessionEditText(event.target.value)} aria-label="問題を編集" autoFocus /> : <MahjongText text={currentCard.question} />}</div>
                 )}
 
                 {sessionEditField ? (

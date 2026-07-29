@@ -1,5 +1,10 @@
-export const APP_VERSION = 51;
+export const APP_VERSION = 52;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/29 22:30",
+    title: "ver52 添付画像まわりの余白を圧縮",
+    body: "問題・解説の文章と添付画像の間を詰め、カード内で画像を続けて確認しやすくしました。",
+  },
   {
     date: "2026/7/29 22:20",
     title: "ver51 カード操作を見やすく改善",

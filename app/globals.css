@@ -1433,7 +1433,7 @@ summary:focus-visible {
 
 .card-face--answer .answer-block {
   align-self: center;
-  margin: 16px 0;
+  margin: 6px 0;
 }
 
 @keyframes card-turn-in {
@@ -1474,7 +1474,7 @@ summary:focus-visible {
 
 .question-text {
   align-self: center;
-  margin: 16px 0;
+  margin: 6px 0;
   font-family: inherit;
   font-size: clamp(1.25rem, 5.5vw, 2.05rem);
   font-weight: 800;
@@ -1580,6 +1580,15 @@ summary:focus-visible {
   gap: 5px;
   margin: 14px auto;
   max-width: min(100%, 560px);
+}
+
+.flashcard .card-image {
+  margin: 6px auto;
+}
+
+.card-copy,
+.question-text {
+  width: 100%;
 }
 
 .card-image img {
