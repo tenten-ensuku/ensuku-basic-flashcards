@@ -1,4 +1,16 @@
-export const APP_VERSION = 45;
+export const APP_VERSION = 46;
+export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/29 21:20",
+    title: "ver46 設定・アナウンスを追加",
+    body: "画面のトーン設定、アプリアイコン設定への入口、お気に入り操作の案内表示を追加しました。お気に入りは引き続きこの端末だけに保存されます。",
+  },
+  {
+    date: "2026/7/29 21:00",
+    title: "ver45 お気に入りメニューを整理",
+    body: "お気に入りを表題カードの上へ移動し、フラッシュカードと問題一覧を選べるようにしました。",
+  },
+]);
 export const STORAGE_KEY = "ensuku-basic-flashcards-v4";
 export const LEGACY_STORAGE_KEY = "ensuku-basic-flashcards-v3";
 

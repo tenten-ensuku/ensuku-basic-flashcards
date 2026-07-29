@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   APP_VERSION,
+  APP_ANNOUNCEMENTS,
   LEGACY_STORAGE_KEY,
   LESSONS,
   STORAGE_KEY,
@@ -61,6 +62,7 @@ type SavedQuizSession = {
 };
 type ReviewCardIdsByLesson = Record<string, number[]>;
 type FavoriteCardIdsByLesson = Record<string, number[]>;
+type AppTone = "mint" | "sky" | "lavender" | "sunset";
 type DeletedCardIdsByLesson = Record<BaseLessonId, number[]>;
 type LastSession = {
   lessonId: LessonId;
@@ -107,6 +109,7 @@ const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const ADMIN_API_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? "";
 const DEFAULT_APP_ICON_URL = `${BASE_PATH}/icons/serina.png`;
 const FAVORITES_SESSION_ID = "__favorites__";
+const APPEARANCE_STORAGE_KEY = "ensuku-basic-flashcards-appearance-v1";
 
 function favoriteSessionCardId(lessonId: string, cardId: number) {
   let hash = 0;
@@ -343,7 +346,17 @@ function createSavedQuizSession(
   };
 }
 
-function HomeHeader({ compact = false, iconUrl = DEFAULT_APP_ICON_URL }: { compact?: boolean; iconUrl?: string }) {
+function HomeHeader({
+  compact = false,
+  iconUrl = DEFAULT_APP_ICON_URL,
+  onOpenSettings,
+  onOpenAnnouncements,
+}: {
+  compact?: boolean;
+  iconUrl?: string;
+  onOpenSettings?: () => void;
+  onOpenAnnouncements?: () => void;
+}) {
   return (
     <header className={compact ? "brand brand--compact" : "brand"}>
       <div className="brand__mark" aria-hidden="true">
@@ -354,7 +367,13 @@ function HomeHeader({ compact = false, iconUrl = DEFAULT_APP_ICON_URL }: { compa
         <p className="brand__eyebrow">ENSUKU BASIC LECTURE</p>
         <h1 id={compact ? undefined : "app-title"}>授業復習～瀬利さりな～</h1>
       </div>
-      <span className="version">ver{APP_VERSION}</span>
+      {compact ? <span className="version">ver{APP_VERSION}</span> : (
+        <div className="brand__actions">
+          <button type="button" className="header-icon-button" onClick={onOpenAnnouncements} title="お知らせを見る" aria-label="お知らせを見る">📣</button>
+          <button type="button" className="header-icon-button" onClick={onOpenSettings} title="設定を開く" aria-label="設定を開く">⚙</button>
+          <span className="version">ver{APP_VERSION}</span>
+        </div>
+      )}
     </header>
   );
 }
@@ -393,6 +412,10 @@ export default function Home() {
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
   const [appIconUrl, setAppIconUrl] = useState(DEFAULT_APP_ICON_URL);
   const [appIconDraft, setAppIconDraft] = useState("");
+  const [appTone, setAppTone] = useState<AppTone>("mint");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [announcementsOpen, setAnnouncementsOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
   const [customLessonCards, setCustomLessonCards] = useState<Record<string, Flashcard[]>>({});
   const [newLessonResources, setNewLessonResources] = useState<Array<Omit<LessonResource, "id" | "lessonId">>>([]);
   const [newLesson, setNewLesson] = useState({ date: "", teacher: "", title: "", videoUrl: "" });
@@ -435,6 +458,25 @@ export default function Home() {
   const [savedFlashcardSession, setSavedFlashcardSession] = useState<SavedFlashcardSession | null>(null);
   const startedAtRef = useRef(0);
   const resultRef = useRef<LastSession | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(APPEARANCE_STORAGE_KEY);
+      if (stored === "mint" || stored === "sky" || stored === "lavender" || stored === "sunset") setAppTone(stored);
+    } catch {
+      // 保存できない環境では標準トーンを使う。
+    }
+  }, []);
+
+  const changeAppTone = (tone: AppTone) => {
+    setAppTone(tone);
+    try { window.localStorage.setItem(APPEARANCE_STORAGE_KEY, tone); } catch { /* その場だけ反映する。 */ }
+  };
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    window.setTimeout(() => setToastMessage((current) => current === message ? "" : current), 2200);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1734,12 +1776,14 @@ export default function Home() {
 
   const toggleFavoriteCard = (lessonId: LessonId, cardId: number) => {
     const currentIds = activeFavoriteCardIdsByLesson[lessonId] ?? [];
+    const isRemoving = currentIds.includes(cardId);
     const nextIds = currentIds.includes(cardId)
       ? currentIds.filter((id) => id !== cardId)
       : [...currentIds, cardId].sort((left, right) => left - right);
     const nextFavoriteState = { ...activeFavoriteCardIdsByLesson, [lessonId]: nextIds };
     setFavoriteCardIdsByLesson(nextFavoriteState);
     safeSave(activeReviewCardIdsByLesson, lastSession, savedFlashcardSession, nextFavoriteState);
+    showToast(isRemoving ? "お気に入りから削除しました" : "お気に入りに追加しました");
   };
 
   const addCardFromList = () => {
@@ -1911,12 +1955,55 @@ export default function Home() {
   };
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-tone={appTone}>
       <div className="felt-grain" aria-hidden="true" />
+      {toastMessage && <div className="toast-message" role="status">{toastMessage}</div>}
 
       {screen === "home" && (
         <section className="screen screen--home" aria-labelledby="app-title">
-          <HomeHeader iconUrl={appIconUrl} />
+          <HomeHeader iconUrl={appIconUrl} onOpenSettings={() => setSettingsOpen(true)} onOpenAnnouncements={() => setAnnouncementsOpen(true)} />
+
+          {settingsOpen && (
+            <section className="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+              <div className="settings-sheet__header">
+                <div><p className="section-kicker">SETTINGS</p><h2 id="settings-title">設定</h2></div>
+                <button type="button" className="icon-button" onClick={() => setSettingsOpen(false)} title="設定を閉じる" aria-label="設定を閉じる">×</button>
+              </div>
+              <div className="settings-group">
+                <h3>画面のトーン</h3>
+                <p>この端末だけの表示設定です。</p>
+                <div className="tone-options">
+                  {(["mint", "sky", "lavender", "sunset"] as const).map((tone) => (
+                    <button key={tone} type="button" className={`tone-option tone-option--${tone}${appTone === tone ? " tone-option--active" : ""}`} onClick={() => changeAppTone(tone)} aria-pressed={appTone === tone} title={`${({ mint: "ミント", sky: "スカイ", lavender: "ラベンダー", sunset: "サンセット" } as const)[tone]}に変更`}>
+                      {{ mint: "ミント", sky: "スカイ", lavender: "ラベンダー", sunset: "サンセット" }[tone]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="settings-group">
+                <h3>アプリアイコン</h3>
+                <p>画面のアイコンを変更します。ショートカットの絵柄は、変更後に再追加すると更新されます。</p>
+                <input value={appIconDraft} onChange={(event) => setAppIconDraft(event.target.value)} placeholder="画像URLを貼り付け" aria-label="アプリアイコンURL" />
+                <div className="settings-actions">
+                  <label className="settings-upload-button" title="画像をアップロードしてアイコンに設定"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAppIcon(file); event.currentTarget.value = ""; }} />画像を選ぶ</label>
+                  <button type="button" className="settings-save-button" onClick={() => void saveAppIconUrl()} title="アイコンURLを保存">保存</button>
+                  <button type="button" className="text-button" onClick={() => void saveAppIconUrl("")} title="標準アイコンへ戻す">標準に戻す</button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {announcementsOpen && (
+            <section className="settings-sheet announcement-sheet" role="dialog" aria-modal="true" aria-labelledby="announcements-title">
+              <div className="settings-sheet__header">
+                <div><p className="section-kicker">ANNOUNCEMENTS</p><h2 id="announcements-title">お知らせ</h2></div>
+                <button type="button" className="icon-button" onClick={() => setAnnouncementsOpen(false)} title="お知らせを閉じる" aria-label="お知らせを閉じる">×</button>
+              </div>
+              <div className="announcement-list">
+                {APP_ANNOUNCEMENTS.map((announcement) => <article key={`${announcement.date}-${announcement.title}`} className="announcement-item"><time>{announcement.date}</time><h3>{announcement.title}</h3><p>{announcement.body}</p></article>)}
+              </div>
+            </section>
+          )}
 
           <section
             className={`favorite-launch-panel mode-panel mode-panel--collapsible ${openHomeSection === FAVORITES_SESSION_ID ? "mode-panel--open" : ""}`}
@@ -2693,6 +2780,7 @@ export default function Home() {
                     className={`favorite-toggle favorite-toggle--session${currentCardIsFavorite ? " favorite-toggle--active" : ""}`}
                     onClick={() => currentCardId !== undefined && toggleFavoriteCard(currentCardLessonId, currentCardId)}
                     aria-pressed={currentCardIsFavorite}
+                    title={currentCardIsFavorite ? "お気に入りから削除" : "お気に入りに追加"}
                     data-testid="toggle-favorite-session"
                   >
                     <span aria-hidden="true">★</span> {currentCardIsFavorite ? "お気に入り済み" : "お気に入りに追加"}
@@ -2951,7 +3039,7 @@ export default function Home() {
                     <p><MahjongText text={card.answer} /></p>
                     <div className="list-card-actions">
                       <button type="button" className="list-edit-button" onClick={() => { setSelectedLesson(lessonId); setScreen("list"); }}>この授業の問題一覧へ</button>
-                      <button type="button" className="list-delete-button" onClick={() => toggleFavoriteCard(lessonId, card.id)}>お気に入りから外す</button>
+                      <button type="button" className="list-delete-button" onClick={() => toggleFavoriteCard(lessonId, card.id)} title="お気に入りから削除">お気に入りから外す</button>
                     </div>
                   </div>
                 </details>

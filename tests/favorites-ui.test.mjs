@@ -13,6 +13,9 @@ test("favorites use a compact expandable home card and can be toggled from sessi
   assert.match(source, /data-testid=\{`toggle-favorite-list-\$\{card\.id\}`\}/);
   assert.match(source, /screen === "favorites"/);
   assert.match(source, /favoriteCardIdsByLesson/);
+  assert.match(source, /お気に入りに追加しました/);
+  assert.match(source, /お気に入りから削除しました/);
+  assert.match(source, /title=\{currentCardIsFavorite \? "お気に入りから削除" : "お気に入りに追加"\}/);
 });
 
 test("flashcard lists expose add and delete controls", () => {
