@@ -184,14 +184,17 @@ export async function handleAdminApi(request, env) {
         return [];
       }
     });
-    const lessons = (lessonResult.results ?? []).map((row) => ({
+    const lessonRows = (lessonResult.results ?? []).map((row) => ({
       id: row.lesson_id,
       date: row.lesson_date,
       teacher: row.teacher,
       title: row.title,
       videoUrl: row.video_url,
       sortOrder: row.sort_order,
+      ...(row.deleted === 1 ? { deleted: true } : {}),
     }));
+    const lessons = lessonRows.filter((lesson) => !lesson.deleted);
+    const deletedLessons = lessonRows.filter((lesson) => lesson.deleted);
     const resources = (resourceResult.results ?? []).map((row) => ({
       id: row.resource_id,
       lessonId: row.lesson_id,
@@ -206,7 +209,7 @@ export async function handleAdminApi(request, env) {
       answer: row.answer,
     }));
     const cardOrders = (orderResult.results ?? []).map((row) => ({ lessonId: row.lesson_id, id: row.card_id, sortOrder: row.sort_order }));
-    return json(request, { overrides, quizOverrides, lessons, resources, customCards, cardOrders });
+    return json(request, { overrides, quizOverrides, lessons, deletedLessons, resources, customCards, cardOrders });
   }
 
   if (url.pathname === "/api/admin/lessons" && request.method === "POST") {

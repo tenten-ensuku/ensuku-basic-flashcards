@@ -377,6 +377,7 @@ export default function Home() {
   const [adminBusyCard, setAdminBusyCard] = useState<number | null>(null);
   const [adminPendingDelete, setAdminPendingDelete] = useState("");
   const [addedLessons, setAddedLessons] = useState<AddedLesson[]>([]);
+  const [deletedLessons, setDeletedLessons] = useState<AddedLesson[]>([]);
   const [lessonEditDraft, setLessonEditDraft] = useState<AddedLesson | null>(null);
   const [draggedLessonId, setDraggedLessonId] = useState<string | null>(null);
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
@@ -428,9 +429,9 @@ export default function Home() {
     fetch(adminApiPath("/api/cards"), { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("問題データを取得できませんでした。");
-        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; resources?: LessonResource[]; customCards?: Array<Flashcard & { lessonId: string }>; cardOrders?: Array<{ lessonId: string; id: number; sortOrder: number }> }>;
+        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; deletedLessons?: AddedLesson[]; resources?: LessonResource[]; customCards?: Array<Flashcard & { lessonId: string }>; cardOrders?: Array<{ lessonId: string; id: number; sortOrder: number }> }>;
       })
-      .then(({ overrides = [], quizOverrides = [], lessons = [], resources = [], customCards = [], cardOrders = [] }) => {
+      .then(({ overrides = [], quizOverrides = [], lessons = [], deletedLessons = [], resources = [], customCards = [], cardOrders = [] }) => {
         const nextCards = withOverrides(overrides);
         const nextCardOrder = cardOrders.reduce<Record<string, number[]>>((grouped, item) => {
           (grouped[item.lessonId] ??= []).push(item.id);
@@ -455,7 +456,8 @@ export default function Home() {
         setQuizBank(nextQuiz);
         setAdminQuizDrafts(nextQuiz);
         setDeletedQuizIds(quizOverrides.filter((item) => item.deleted).map((item) => item.id));
-      setAddedLessons([...lessons].sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || right.date.localeCompare(left.date, "ja")));
+        setAddedLessons([...lessons].sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || right.date.localeCompare(left.date, "ja")));
+        setDeletedLessons(deletedLessons);
         setLessonResources(resources);
         setCustomLessonCards(nextCustomCards);
       })
@@ -908,10 +910,30 @@ export default function Home() {
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "授業を削除できませんでした。");
       setAddedLessons((current) => current.filter((item) => item.id !== lesson.id));
+      setDeletedLessons((current) => [...current.filter((item) => item.id !== lesson.id), { ...lesson, deleted: true }]);
       setLessonEditDraft(null);
       setAdminNotice("授業を削除しました。カードと学習記録は保持されています。");
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "授業を削除できませんでした。");
+    } finally { setAdminBusyCard(null); }
+  };
+
+  const restoreLessonMetadata = async (lesson: AddedLesson) => {
+    setAdminError("");
+    setAdminBusyCard(0);
+    try {
+      const response = await fetch(adminApiPath(`/api/admin/lessons/${lesson.id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(lesson),
+      });
+      const payload = await response.json() as { error?: string; lesson?: AddedLesson };
+      if (!response.ok || !payload.lesson) throw new Error(payload.error ?? "授業を復元できませんでした。");
+      setDeletedLessons((current) => current.filter((item) => item.id !== lesson.id));
+      setAddedLessons((current) => [...current, payload.lesson!].sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || right.date.localeCompare(left.date, "ja")));
+      setAdminNotice("授業を復元しました。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "授業を復元できませんでした。");
     } finally { setAdminBusyCard(null); }
   };
 
@@ -1041,6 +1063,26 @@ export default function Home() {
     setAdminQuizDrafts((current) => current.map((question) =>
       question.id === questionId ? { ...question, correctIndex } : question,
     ));
+  };
+
+  const uploadQuizImage = async (questionId: number, field: "question" | "explanation", file: File) => {
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
+      setAdminError("JPEG・PNG・WebP・GIF画像を選択してください。");
+      return;
+    }
+    setAdminBusyCard(questionId);
+    setAdminError("");
+    try {
+      const response = await fetch(adminApiPath("/api/images"), { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const payload = await response.json() as { error?: string; url?: string };
+      if (!response.ok || !payload.url) throw new Error(payload.error ?? "画像をアップロードできませんでした。");
+      setAdminQuizDrafts((current) => current.map((question) => question.id === questionId
+        ? { ...question, [field]: `${question[field]}${question[field] ? "\n" : ""}![画像](${payload.url})` }
+        : question));
+      setAdminNotice("クイズ画像を追加しました。保存すると公開されます。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
+    } finally { setAdminBusyCard(null); }
   };
 
   const saveAdminCard = async (lessonId: BaseLessonId, card: Flashcard) => {
@@ -1350,6 +1392,7 @@ export default function Home() {
       revealed,
       activeReviewCardIdsByLesson,
       selectedLesson,
+      sessionCards,
       sessionCards.length,
       sessionMode,
       sessionRatings,
@@ -2144,6 +2187,18 @@ export default function Home() {
               ))}
             </section>
           )}
+          {deletedLessons.length > 0 && (
+            <section className="admin-deleted-list">
+              <h3>削除済みの授業</h3>
+              <p>削除した授業は、カードと学習記録を保ったまま復元できます。</p>
+              {deletedLessons.map((lesson) => (
+                <div className="admin-deleted-row" key={`deleted-lesson-${lesson.id}`}>
+                  <span>{lesson.date}　{lesson.teacher}　{lesson.title}</span>
+                  <button type="button" onClick={() => void restoreLessonMetadata(lesson)} disabled={adminBusyCard !== null}>授業を復元</button>
+                </div>
+              ))}
+            </section>
+          )}
 
           <div className="admin-lesson-tabs" role="tablist" aria-label="問題集を選択">
             {ADMIN_SECTIONS.map((section) => (
@@ -2198,6 +2253,10 @@ export default function Home() {
                         onChange={(event) => updateAdminQuizDraft(question.id, "question", event.target.value)}
                         rows={4}
                       />
+                      <label className="image-upload image-upload--drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files?.[0]; if (file) void uploadQuizImage(question.id, "question", file); }}>
+                        問題に画像を追加（ドロップ・貼り付け可）
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadQuizImage(question.id, "question", file); event.currentTarget.value = ""; }} />
+                      </label>
                       <fieldset className="admin-option-fields">
                         <legend>選択肢</legend>
                         {question.options.map((option, optionIndex) => (
@@ -2234,6 +2293,10 @@ export default function Home() {
                         onChange={(event) => updateAdminQuizDraft(question.id, "explanation", event.target.value)}
                         rows={5}
                       />
+                      <label className="image-upload image-upload--drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files?.[0]; if (file) void uploadQuizImage(question.id, "explanation", file); }}>
+                        解説に画像を追加（ドロップ・貼り付け可）
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadQuizImage(question.id, "explanation", file); event.currentTarget.value = ""; }} />
+                      </label>
                       <div className="admin-card-actions">
                         <button
                           type="button"
