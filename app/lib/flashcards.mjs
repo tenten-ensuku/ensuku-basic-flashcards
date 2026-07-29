@@ -1,5 +1,10 @@
-export const APP_VERSION = 48;
+export const APP_VERSION = 49;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/29 22:00",
+    title: "ver49 問題画像の差し替えに対応",
+    body: "問題一覧の編集画面で、問題文・解説にある最初の画像を新しい画像へ差し替えられるようにしました。",
+  },
   {
     date: "2026/7/29 21:45",
     title: "ver48 添付画像を画面内で表示",

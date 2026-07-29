@@ -61,3 +61,11 @@ test("quiz editors accept image drops for both faces", () => {
   assert.match(pageSource, /問題に画像を追加（ドロップ・貼り付け可）/);
   assert.match(pageSource, /解説に画像を追加（ドロップ・貼り付け可）/);
 });
+
+test("list card editor can replace the first image on either face", () => {
+  assert.match(pageSource, /const replaceListImage = \(field: "question" \| "answer", file: File\)/);
+  assert.match(pageSource, /IMAGE_MARKDOWN_PATTERN/);
+  assert.match(pageSource, /問題の画像を差し替え/);
+  assert.match(pageSource, /解説の画像を差し替え/);
+  assert.match(pageSource, /currentText\.replace\(IMAGE_MARKDOWN_PATTERN, imageMarkdown\)/);
+});

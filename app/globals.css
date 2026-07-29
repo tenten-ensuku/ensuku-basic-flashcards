@@ -2629,6 +2629,18 @@ summary:focus-visible {
   display: none;
 }
 
+.list-image-drop--replace {
+  min-height: 52px;
+  border-color: #8c77ec;
+  color: #654bc4;
+  background: #f4f0ff;
+}
+
+.list-image-drop--replace small {
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
 .list-edit-actions {
   display: flex;
   justify-content: flex-end;

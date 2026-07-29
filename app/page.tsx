@@ -110,6 +110,7 @@ const ADMIN_API_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? "";
 const DEFAULT_APP_ICON_URL = `${BASE_PATH}/icons/serina.png`;
 const FAVORITES_SESSION_ID = "__favorites__";
 const APPEARANCE_STORAGE_KEY = "ensuku-basic-flashcards-appearance-v1";
+const IMAGE_MARKDOWN_PATTERN = /!\[[^\]]*\]\([^)]+\)/;
 const BASE_LESSON_METADATA: Record<BaseLessonId, AddedLesson> = {
   tenten0718: { id: "tenten0718", date: "7/18", teacher: "てんてん先生", title: "6枚形+完全形何切る？", videoUrl: LESSONS.tenten0718.videoUrl },
   tenten: { id: "tenten", date: "7/14", teacher: "てんてん先生", title: "基礎講義復習", videoUrl: LESSONS.tenten.videoUrl },
@@ -1699,7 +1700,7 @@ export default function Home() {
     setAdminError("");
   };
 
-  const appendListImage = async (field: "question" | "answer", file: File) => {
+  const uploadListImage = async (field: "question" | "answer", file: File, action: "append" | "replace") => {
     if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
       setAdminError("JPEG・PNG・WebP・GIF画像を選択してください。");
       return;
@@ -1711,14 +1712,26 @@ export default function Home() {
       const response = await fetch(adminApiPath("/api/images"), { method: "POST", headers: { "Content-Type": file.type }, body: file });
       const payload = await response.json() as { error?: string; url?: string };
       if (!response.ok || !payload.url) throw new Error(payload.error ?? "画像をアップロードできませんでした。");
-      setListEditDraft((current) => current ? { ...current, [field]: `${current[field]}${current[field] ? "\n" : ""}![画像](${payload.url})` } : current);
-      setAdminNotice("画像を挿入しました。保存すると公開されます。");
+      setListEditDraft((current) => {
+        if (!current) return current;
+        const imageMarkdown = `![画像](${payload.url})`;
+        const currentText = current[field];
+        const hasExistingImage = IMAGE_MARKDOWN_PATTERN.test(currentText);
+        const nextText = action === "replace" && hasExistingImage
+          ? currentText.replace(IMAGE_MARKDOWN_PATTERN, imageMarkdown)
+          : `${currentText}${currentText ? "\n" : ""}${imageMarkdown}`;
+        return { ...current, [field]: nextText };
+      });
+      setAdminNotice(action === "replace" ? "画像を差し替えました。保存すると公開されます。" : "画像を挿入しました。保存すると公開されます。");
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
     } finally {
       setAdminBusyCard(null);
     }
   };
+
+  const appendListImage = (field: "question" | "answer", file: File) => uploadListImage(field, file, "append");
+  const replaceListImage = (field: "question" | "answer", file: File) => uploadListImage(field, file, "replace");
 
   const saveListEdit = async () => {
     if (!listEditDraft || !listEditDraft.question.trim() || !listEditDraft.answer.trim()) return;
@@ -3153,10 +3166,20 @@ export default function Home() {
                         問題に画像をドロップ
                         <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void appendListImage("question", file); event.currentTarget.value = ""; }} />
                       </label>
+                      <label className="list-image-drop list-image-drop--replace" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file) void replaceListImage("question", file); }}>
+                        問題の画像を差し替え
+                        <small>最初の画像を置き換えます</small>
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void replaceListImage("question", file); event.currentTarget.value = ""; }} />
+                      </label>
                       <label>解説<textarea value={listEditDraft.answer} onChange={(event) => setListEditDraft((current) => current ? { ...current, answer: event.target.value } : current)} /></label>
                       <label className="list-image-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file) void appendListImage("answer", file); }}>
                         解説に画像をドロップ
                         <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void appendListImage("answer", file); event.currentTarget.value = ""; }} />
+                      </label>
+                      <label className="list-image-drop list-image-drop--replace" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file) void replaceListImage("answer", file); }}>
+                        解説の画像を差し替え
+                        <small>最初の画像を置き換えます</small>
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void replaceListImage("answer", file); event.currentTarget.value = ""; }} />
                       </label>
                       <div className="list-edit-actions"><button type="button" onClick={() => setListEditDraft(null)} disabled={adminBusyCard !== null}>キャンセル</button><button type="button" onClick={saveListEdit} disabled={adminBusyCard !== null || !listEditDraft.question.trim() || !listEditDraft.answer.trim()}>{adminBusyCard === card.id ? "保存中…" : "保存"}</button></div>
                     </div>
