@@ -26,6 +26,7 @@ import { tokenizeRichText } from "./lib/rich-text.mjs";
 type Screen = "home" | "session" | "result" | "list" | "quiz" | "quiz-list" | "quiz-result" | "admin-login" | "admin";
 type SessionMode = "all" | "review";
 type Rating = "known" | "again";
+type SessionEditField = "question" | "answer" | null;
 type BaseLessonId = keyof typeof LESSONS;
 type LessonId = BaseLessonId | string;
 type Flashcard = { id: number; question: string; answer: string };
@@ -341,6 +342,8 @@ export default function Home() {
   const [openHomeSection, setOpenHomeSection] = useState<HomeSectionId | null>(null);
   const [sessionMode, setSessionMode] = useState<SessionMode>("all");
   const [sessionCards, setSessionCards] = useState<Flashcard[]>([]);
+  const [sessionEditField, setSessionEditField] = useState<SessionEditField>(null);
+  const [sessionEditText, setSessionEditText] = useState("");
   const [cardIndex, setCardIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [knownCount, setKnownCount] = useState(0);
@@ -500,6 +503,8 @@ export default function Home() {
       setSelectedLesson(lessonId);
       setSessionMode(mode);
       setSessionCards(cards);
+      setSessionEditField(null);
+      setSessionEditText("");
       setCardIndex(0);
       setRevealed(false);
       setKnownCount(0);
@@ -1120,6 +1125,7 @@ export default function Home() {
   useEffect(() => {
     if (screen !== "session") return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (sessionEditField) return;
       if (event.key === " " || event.code === "Space" || event.key === "Enter") {
         event.preventDefault();
         setRevealed((value) => !value);
@@ -1133,7 +1139,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [rateCard, revealed, screen]);
+  }, [rateCard, revealed, screen, sessionEditField]);
 
   useEffect(() => {
     if (screen !== "quiz") return;
@@ -1171,6 +1177,59 @@ export default function Home() {
   const leaveQuiz = () => {
     if (screen === "quiz" && quizQuestions.length) saveQuizSnapshot(quizIndex, quizAnswers);
     setScreen("home");
+  };
+
+  const isBaseLessonId = (lessonId: LessonId): lessonId is BaseLessonId =>
+    Object.prototype.hasOwnProperty.call(LESSONS, lessonId);
+
+  const beginSessionEdit = (field: Exclude<SessionEditField, null>) => {
+    if (!currentCard) return;
+    setSessionEditField(field);
+    setSessionEditText(currentCard[field]);
+  };
+
+  const cancelSessionEdit = () => {
+    setSessionEditField(null);
+    setSessionEditText("");
+  };
+
+  const saveSessionEdit = async () => {
+    if (!currentCard || !sessionEditField || !sessionEditText.trim()) return;
+    const card = { ...currentCard, [sessionEditField]: sessionEditText.trim() };
+    setAdminError("");
+    setAdminBusyCard(card.id);
+    try {
+      const isBaseLesson = isBaseLessonId(selectedLesson);
+      const response = await fetch(
+        adminApiPath(isBaseLesson
+          ? `/api/admin/cards/${selectedLesson}/${card.id}`
+          : `/api/admin/lessons/${selectedLesson}/cards/${card.id}`),
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(isBaseLesson ? { "X-Admin-Password": adminPassword } : {}),
+          },
+          body: JSON.stringify({ question: card.question, answer: card.answer }),
+        },
+      );
+      const payload = await response.json() as { error?: string; card?: Flashcard };
+      if (!response.ok || !payload.card) throw new Error(payload.error ?? "保存できませんでした。");
+      const savedCard = payload.card;
+      setCardsByLesson((current) => ({ ...current, [selectedLesson]: (current[selectedLesson] ?? []).map((item) => item.id === savedCard.id ? savedCard : item) }));
+      setSessionCards((current) => current.map((item) => item.id === savedCard.id ? savedCard : item));
+      if (isBaseLesson) {
+        setAdminDrafts((current) => ({ ...current, [selectedLesson]: (current[selectedLesson] ?? []).map((item) => item.id === savedCard.id ? savedCard : item) }));
+      } else {
+        setCustomLessonCards((current) => ({ ...current, [selectedLesson]: (current[selectedLesson] ?? []).map((item) => item.id === savedCard.id ? savedCard : item) }));
+      }
+      setAdminNotice("カードを保存しました。");
+      cancelSessionEdit();
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "保存できませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
   };
 
   const lessonLabel = (lessonId: LessonId) => LESSONS[lessonId as BaseLessonId]?.label
@@ -1978,15 +2037,18 @@ export default function Home() {
 
                 {revealed ? (
                   <div className="answer-block" data-testid="answer">
-                    <p><MahjongText text={currentCard.answer} /></p>
+                    {sessionEditField === "answer" ? <textarea className="session-card-editor" value={sessionEditText} onChange={(event) => setSessionEditText(event.target.value)} aria-label="解説を編集" autoFocus /> : <p><MahjongText text={currentCard.answer} /></p>}
                   </div>
                 ) : (
-                  <p className="question-text">
-                    <MahjongText text={currentCard.question} />
-                  </p>
+                  <p className="question-text">{sessionEditField === "question" ? <textarea className="session-card-editor session-card-editor--question" value={sessionEditText} onChange={(event) => setSessionEditText(event.target.value)} aria-label="問題を編集" autoFocus /> : <MahjongText text={currentCard.question} />}</p>
                 )}
 
-                {revealed ? (
+                {sessionEditField ? (
+                  <div className="session-edit-actions">
+                    <button className="session-edit-cancel" type="button" onClick={cancelSessionEdit} disabled={adminBusyCard !== null}>キャンセル</button>
+                    <button className="session-edit-save" type="button" onClick={saveSessionEdit} disabled={adminBusyCard !== null || !sessionEditText.trim()}>{adminBusyCard === currentCard.id ? "保存中…" : "保存"}</button>
+                  </div>
+                ) : revealed ? (
                   <button
                     className="reveal-button reveal-button--back"
                     type="button"
@@ -2007,6 +2069,11 @@ export default function Home() {
                     <kbd>Space</kbd>
                   </button>
                 )}
+                {!sessionEditField && (
+                  <button className="session-edit-button" type="button" onClick={() => beginSessionEdit(revealed ? "answer" : "question")} aria-label={revealed ? "解説を編集" : "問題を編集"}>
+                    ✎ {revealed ? "解説を編集" : "問題を編集"}
+                  </button>
+                )}
               </div>
             </article>
           </div>
@@ -2017,7 +2084,7 @@ export default function Home() {
               <button
                 className="rating-button rating-button--again"
                 onClick={() => rateCard("again")}
-                disabled={!revealed || isAdvancing}
+                disabled={!revealed || isAdvancing || sessionEditField !== null}
                 data-testid="rate-again"
               >
                 <span aria-hidden="true">↺</span>
@@ -2027,7 +2094,7 @@ export default function Home() {
               <button
                 className="rating-button rating-button--known"
                 onClick={() => rateCard("known")}
-                disabled={!revealed || isAdvancing}
+                disabled={!revealed || isAdvancing || sessionEditField !== null}
                 data-testid="rate-known"
               >
                 <span aria-hidden="true">✓</span>

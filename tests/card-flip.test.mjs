@@ -34,7 +34,7 @@ test("Space and Enter toggle the current card face", () => {
 
 test("rating is available only on the answer face and resets for the next card", () => {
   assert.equal(
-    (sessionSource.match(/disabled=\{!revealed \|\| isAdvancing\}/g) ?? []).length,
+    (sessionSource.match(/disabled=\{!revealed \|\| isAdvancing \|\| sessionEditField !== null\}/g) ?? []).length,
     2,
   );
   assert.match(pageSource, /setCardIndex\(\(index\) => index \+ 1\);\s*setRevealed\(false\);/);
