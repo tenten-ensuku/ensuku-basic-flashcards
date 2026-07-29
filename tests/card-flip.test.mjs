@@ -45,6 +45,9 @@ test("flashcard sessions can resume and move to adjacent cards", () => {
   assert.match(pageSource, /setCardsByLesson\(orderedCards\);[\s\S]*?setIsContentLoading\(false\);/);
   assert.match(pageSource, /if \(isContentLoading\) return;[\s\S]*?const sourceCards = cardsByLesson/);
   assert.match(pageSource, /disabled=\{isContentLoading\}/);
+  assert.match(pageSource, /screen--home\$\{isContentLoading \? " screen--home-loading" : ""\}/);
+  assert.match(pageSource, /授業カードを読み込んでいます…/);
+  assert.match(cssSource, /\.screen--home-loading > \.mode-panel,[\s\S]*?visibility: hidden;/);
   assert.match(pageSource, /type SavedFlashcardSession =/);
   assert.match(pageSource, /setSavedFlashcardSession\(stored\.session as SavedFlashcardSession \| null\)/);
   assert.match(pageSource, /const resumeSession = useCallback/);

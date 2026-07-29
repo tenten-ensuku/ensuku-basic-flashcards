@@ -1,5 +1,10 @@
-export const APP_VERSION = 54;
+export const APP_VERSION = 55;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 00:10",
+    title: "ver55 授業カードをまとめて表示",
+    body: "共有データの読み込みが終わってから授業カードを表示し、追加授業だけ遅れて現れないようにしました。",
+  },
   {
     date: "2026/7/29 23:55",
     title: "ver54 共有問題の読み込み完了後に開始",

@@ -1399,6 +1399,19 @@ summary:focus-visible {
   place-items: stretch;
 }
 
+.screen--home-loading > .mode-panel,
+.screen--home-loading > .quiz-launch-panel,
+.screen--home-loading > .home-footer {
+  visibility: hidden;
+}
+
+.home-content-loading {
+  margin: 24px 0;
+  color: var(--green);
+  font-weight: 800;
+  text-align: center;
+}
+
 .flashcard {
   display: grid;
   grid-template-rows: auto minmax(90px, 1fr) auto minmax(80px, auto);

@@ -1998,7 +1998,7 @@ export default function Home() {
       )}
 
       {screen === "home" && (
-        <section className="screen screen--home" aria-labelledby="app-title">
+        <section className={`screen screen--home${isContentLoading ? " screen--home-loading" : ""}`} aria-labelledby="app-title">
           <HomeHeader iconUrl={appIconUrl} onOpenSettings={() => setSettingsOpen(true)} onOpenAnnouncements={() => setAnnouncementsOpen(true)} />
 
           {settingsOpen && (
@@ -2042,6 +2042,8 @@ export default function Home() {
               </div>
             </section>
           )}
+
+          {isContentLoading && <p className="home-content-loading" role="status">授業カードを読み込んでいます…</p>}
 
           <section
             className={`favorite-launch-panel mode-panel mode-panel--collapsible ${openHomeSection === FAVORITES_SESSION_ID ? "mode-panel--open" : ""}`}
