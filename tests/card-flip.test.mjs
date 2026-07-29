@@ -46,8 +46,8 @@ test("flashcard sessions can resume and move to adjacent cards", () => {
   assert.match(pageSource, /const resumeSession = useCallback/);
   assert.match(pageSource, /data-testid=\{`resume-\$\{lessonId\}`\}/);
   assert.match(pageSource, /const moveSessionCard = useCallback/);
-  assert.match(sessionSource, /← 前のカード/);
-  assert.match(sessionSource, /次のカード →/);
+  assert.match(sessionSource, /session-nav-button--previous/);
+  assert.match(sessionSource, /session-nav-button--next/);
   assert.match(pageSource, /persistFlashcardSession\(nextIndex, false\)/);
 });
 

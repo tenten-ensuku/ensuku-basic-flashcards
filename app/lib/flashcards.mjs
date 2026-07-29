@@ -1,5 +1,10 @@
-export const APP_VERSION = 50;
+export const APP_VERSION = 51;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/29 22:20",
+    title: "ver51 カード操作を見やすく改善",
+    body: "自己判定の案内文を外して画面を詰め、前後移動とお気に入りを見つけやすい操作ボタンにまとめました。",
+  },
   {
     date: "2026/7/29 22:10",
     title: "ver50 問題編集中の並べ替えを停止",

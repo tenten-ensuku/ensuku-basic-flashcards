@@ -2829,16 +2829,6 @@ export default function Home() {
                   <strong>
                     {currentCard.sourceLessonId ? "★" : `Q${String(flashcardNumber(selectedLesson, currentCard.id)).padStart(2, "0")}`}
                   </strong>
-                  <button
-                    type="button"
-                    className={`favorite-toggle favorite-toggle--session${currentCardIsFavorite ? " favorite-toggle--active" : ""}`}
-                    onClick={() => currentCardId !== undefined && toggleFavoriteCard(currentCardLessonId, currentCardId)}
-                    aria-pressed={currentCardIsFavorite}
-                    title={currentCardIsFavorite ? "お気に入りから削除" : "お気に入りに追加"}
-                    data-testid="toggle-favorite-session"
-                  >
-                    <span aria-hidden="true">★</span> {currentCardIsFavorite ? "お気に入り済み" : "お気に入りに追加"}
-                  </button>
                 </div>
 
                 {revealed ? (
@@ -2885,7 +2875,6 @@ export default function Home() {
           </div>
 
           <div className="rating-panel" aria-label="自己判定">
-            <p>思い出せましたか？</p>
             <div className="rating-actions">
               <button
                 className="rating-button rating-button--again"
@@ -2910,8 +2899,18 @@ export default function Home() {
             </div>
           </div>
           <div className="session-nav" aria-label="カード移動">
-            <button type="button" className="text-button" onClick={() => moveSessionCard(-1)} disabled={cardIndex === 0 || isAdvancing || sessionEditField !== null}>← 前のカード</button>
-            <button type="button" className="text-button" onClick={() => moveSessionCard(1)} disabled={cardIndex >= sessionCards.length - 1 || isAdvancing || sessionEditField !== null}>次のカード →</button>
+            <button type="button" className="session-nav-button session-nav-button--previous" onClick={() => moveSessionCard(-1)} disabled={cardIndex === 0 || isAdvancing || sessionEditField !== null} title="前のカードへ戻る"><span aria-hidden="true">←</span><strong>前のカード</strong></button>
+            <button
+              type="button"
+              className={`session-nav-button session-nav-button--favorite${currentCardIsFavorite ? " session-nav-button--favorite-active" : ""}`}
+              onClick={() => currentCardId !== undefined && toggleFavoriteCard(currentCardLessonId, currentCardId)}
+              aria-pressed={currentCardIsFavorite}
+              title={currentCardIsFavorite ? "お気に入りから削除" : "お気に入りに追加"}
+              data-testid="toggle-favorite-session"
+            >
+              <span aria-hidden="true">★</span><strong>{currentCardIsFavorite ? "お気に入り済み" : "お気に入りに追加"}</strong>
+            </button>
+            <button type="button" className="session-nav-button session-nav-button--next" onClick={() => moveSessionCard(1)} disabled={cardIndex >= sessionCards.length - 1 || isAdvancing || sessionEditField !== null} title="次のカードへ進む"><strong>次のカード</strong><span aria-hidden="true">→</span></button>
           </div>
         </section>
       )}

@@ -18,6 +18,13 @@ test("favorites use a compact expandable home card and can be toggled from sessi
   assert.match(source, /title=\{currentCardIsFavorite \? "お気に入りから削除" : "お気に入りに追加"\}/);
 });
 
+test("session controls put clear navigation around the favorite action", () => {
+  assert.doesNotMatch(source, /思い出せましたか？/);
+  assert.match(source, /className="session-nav-button session-nav-button--previous"/);
+  assert.match(source, /className=\{`session-nav-button session-nav-button--favorite/);
+  assert.match(source, /className="session-nav-button session-nav-button--next"/);
+});
+
 test("flashcard lists expose add and delete controls", () => {
   assert.match(source, /data-testid="add-card-from-list"/);
   assert.match(source, /data-testid="add-card-from-list-bottom"/);

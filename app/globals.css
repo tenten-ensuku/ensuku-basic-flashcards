@@ -1712,13 +1712,6 @@ summary:focus-visible {
   cursor: pointer;
 }
 
-.favorite-toggle--session {
-  min-height: 30px;
-  padding: 4px 9px;
-  font-size: 0.67rem;
-  letter-spacing: 0;
-}
-
 .favorite-toggle--list {
   width: 30px;
   height: 30px;
@@ -1776,13 +1769,6 @@ summary:focus-visible {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.rating-panel > p {
-  margin: 0 0 8px;
-  color: rgba(17, 74, 63, 0.76);
-  font-size: 0.72rem;
-  text-align: center;
-}
-
 .rating-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1834,14 +1820,61 @@ summary:focus-visible {
 }
 
 .session-nav {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 9px;
+  margin-top: 8px;
 }
 
-.session-nav .text-button {
-  min-height: 42px;
+.session-nav-button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(20, 86, 72, 0.16);
+  border-radius: 15px;
+  padding: 9px 10px;
+  background: linear-gradient(145deg, #fffef8, #e8f8f1);
+  box-shadow: 0 4px 10px rgba(12, 84, 69, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  color: #155745;
+  font: inherit;
+  font-size: clamp(0.69rem, 2.7vw, 0.8rem);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.session-nav-button span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(21, 87, 69, 0.1);
+  font-size: 1rem;
+}
+
+.session-nav-button--favorite {
+  border-color: rgba(178, 133, 39, 0.42);
+  background: linear-gradient(145deg, #fffdf2, #f7e6ab);
+  color: #775311;
+}
+
+.session-nav-button--favorite span {
+  background: rgba(161, 111, 18, 0.13);
+  color: #b87b14;
+}
+
+.session-nav-button--favorite-active {
+  border-color: #b98220;
+  background: linear-gradient(145deg, #ffefad, #e9bf55);
+  box-shadow: 0 4px 12px rgba(148, 100, 17, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.session-nav-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.43;
+  filter: grayscale(0.55);
 }
 
 /* Multiple choice quiz */
