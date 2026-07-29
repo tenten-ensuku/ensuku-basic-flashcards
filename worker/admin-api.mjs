@@ -3,6 +3,7 @@ import {
   LESSON_TITLES_SCHEMA_SQL,
   LESSON_RESOURCES_SCHEMA_SQL,
   CUSTOM_LESSON_CARDS_SCHEMA_SQL,
+  FLASHCARD_ORDER_SCHEMA_SQL,
   FLASHCARD_OVERRIDES_LEGACY_COPY_SQL,
   FLASHCARD_OVERRIDES_SCHEMA_SQL,
   QUIZ_OVERRIDES_SCHEMA_SQL,
@@ -47,6 +48,7 @@ async function ensureSchema(db) {
   await db.prepare(LESSON_TITLES_SCHEMA_SQL).run();
   await db.prepare(LESSON_RESOURCES_SCHEMA_SQL).run();
   await db.prepare(CUSTOM_LESSON_CARDS_SCHEMA_SQL).run();
+  await db.prepare(FLASHCARD_ORDER_SCHEMA_SQL).run();
   await db.prepare(QUIZ_OVERRIDES_SCHEMA_SQL).run();
 }
 
@@ -139,6 +141,9 @@ export async function handleAdminApi(request, env) {
     const customCardResult = await env.DB.prepare(
       "SELECT lesson_id, card_id, question, answer FROM custom_lesson_cards ORDER BY lesson_id, card_id",
     ).all();
+    const orderResult = await env.DB.prepare(
+      "SELECT lesson_id, card_id, sort_order FROM flashcard_order ORDER BY lesson_id, sort_order, card_id",
+    ).all();
     const overrides = [...(cardResult.results ?? []).map((row) => ({
       lessonId: row.lesson_id,
       id: row.card_id,
@@ -195,7 +200,8 @@ export async function handleAdminApi(request, env) {
       question: row.question,
       answer: row.answer,
     }));
-    return json(request, { overrides, quizOverrides, lessons, resources, customCards });
+    const cardOrders = (orderResult.results ?? []).map((row) => ({ lessonId: row.lesson_id, id: row.card_id, sortOrder: row.sort_order }));
+    return json(request, { overrides, quizOverrides, lessons, resources, customCards, cardOrders });
   }
 
   if (url.pathname === "/api/admin/lessons" && request.method === "POST") {
@@ -226,6 +232,23 @@ export async function handleAdminApi(request, env) {
       ).bind(`resource-${crypto.randomUUID()}`, id, kind, label.slice(0, 160), url, index).run();
     }
     return json(request, { ok: true, lesson: { id, date, teacher, title, videoUrl } });
+  }
+
+  const orderPath = url.pathname.match(/^\/api\/admin\/(?:cards\/(tenten0718|tenten|nejimaki)|lessons\/(lesson-[a-f0-9-]+)\/cards)\/order$/i);
+  if (orderPath) {
+    if (request.method !== "PUT") return json(request, { error: "対応していない操作です。" }, 405);
+    let body;
+    try { body = await request.json(); } catch { body = {}; }
+    const cardIds = Array.isArray(body?.cardIds) ? body.cardIds : [];
+    if (!cardIds.length || cardIds.length > 10000 || cardIds.some((id) => !Number.isInteger(id) || id < 1 || id > 10000) || new Set(cardIds).size !== cardIds.length) {
+      return json(request, { error: "問題の並び順が正しくありません。" }, 400);
+    }
+    const lessonId = orderPath[1] ?? orderPath[2];
+    await env.DB.prepare("DELETE FROM flashcard_order WHERE lesson_id = ?").bind(lessonId).run();
+    for (let index = 0; index < cardIds.length; index += 1) {
+      await env.DB.prepare("INSERT INTO flashcard_order (lesson_id, card_id, sort_order) VALUES (?, ?, ?)").bind(lessonId, cardIds[index], index + 1).run();
+    }
+    return json(request, { ok: true, cardIds });
   }
 
   const customCardPath = url.pathname.match(/^\/api\/admin\/lessons\/(lesson-[a-f0-9-]+)\/cards(?:\/(\d+))?$/i);

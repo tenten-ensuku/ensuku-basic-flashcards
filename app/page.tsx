@@ -102,6 +102,11 @@ function cloneBaseCards(): CardsByLesson {
   };
 }
 
+function orderCards(cards: Flashcard[], order: number[] = []) {
+  const positions = new Map(order.map((id, index) => [id, index]));
+  return [...cards].sort((left, right) => (positions.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (positions.get(right.id) ?? Number.MAX_SAFE_INTEGER) || left.id - right.id);
+}
+
 function withOverrides(overrides: CardOverride[]): CardsByLesson {
   return {
     tenten0718: mergeFlashcardOverrides(LESSONS.tenten0718.cards, overrides, "tenten0718"),
@@ -313,6 +318,8 @@ function LessonTitle({ label }: { label: string }) {
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
   const [cardsByLesson, setCardsByLesson] = useState<CardsByLesson>(cloneBaseCards);
+  const [cardOrderByLesson, setCardOrderByLesson] = useState<Record<string, number[]>>({});
+  const [draggedCard, setDraggedCard] = useState<{ lessonId: string; cardId: number } | null>(null);
   const [adminDrafts, setAdminDrafts] = useState<CardsByLesson>(cloneBaseCards);
   const [quizBank, setQuizBank] = useState<QuizQuestion[]>(cloneBaseQuiz);
   const [adminQuizDrafts, setAdminQuizDrafts] = useState<QuizQuestion[]>(cloneBaseQuiz);
@@ -365,10 +372,14 @@ export default function Home() {
     fetch(adminApiPath("/api/cards"), { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("問題データを取得できませんでした。");
-        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; resources?: LessonResource[]; customCards?: Array<Flashcard & { lessonId: string }> }>;
+        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; resources?: LessonResource[]; customCards?: Array<Flashcard & { lessonId: string }>; cardOrders?: Array<{ lessonId: string; id: number; sortOrder: number }> }>;
       })
-      .then(({ overrides = [], quizOverrides = [], lessons = [], resources = [], customCards = [] }) => {
+      .then(({ overrides = [], quizOverrides = [], lessons = [], resources = [], customCards = [], cardOrders = [] }) => {
         const nextCards = withOverrides(overrides);
+        const nextCardOrder = cardOrders.reduce<Record<string, number[]>>((grouped, item) => {
+          (grouped[item.lessonId] ??= []).push(item.id);
+          return grouped;
+        }, {});
         const nextQuiz = withQuizOverrides(quizOverrides);
         const nextDeletedCardIds: DeletedCardIdsByLesson = {
           tenten0718: overrides.filter((item) => item.lessonId === "tenten0718" && item.deleted).map((item) => item.id),
@@ -379,9 +390,11 @@ export default function Home() {
           (grouped[card.lessonId] ??= []).push({ id: card.id, question: card.question, answer: card.answer });
           return grouped;
         }, {});
-        Object.values(nextCustomCards).forEach((cards) => cards.sort((left, right) => left.id - right.id));
-        setCardsByLesson({ ...nextCards, ...nextCustomCards });
-        setAdminDrafts(nextCards);
+        Object.keys(nextCustomCards).forEach((lessonId) => { nextCustomCards[lessonId] = orderCards(nextCustomCards[lessonId], nextCardOrder[lessonId]); });
+        const orderedCards = Object.fromEntries(Object.entries({ ...nextCards, ...nextCustomCards }).map(([lessonId, cards]) => [lessonId, orderCards(cards, nextCardOrder[lessonId])])) as CardsByLesson;
+        setCardOrderByLesson(nextCardOrder);
+        setCardsByLesson(orderedCards);
+        setAdminDrafts(Object.fromEntries(Object.entries(nextCards).map(([lessonId, cards]) => [lessonId, orderCards(cards, nextCardOrder[lessonId])])) as CardsByLesson);
         setDeletedCardIdsByLesson(nextDeletedCardIds);
         setQuizBank(nextQuiz);
         setAdminQuizDrafts(nextQuiz);
@@ -1289,6 +1302,45 @@ export default function Home() {
     }
   };
 
+  const reorderCards = async (lessonId: string, fromCardId: number, toCardId: number) => {
+    if (fromCardId === toCardId) return;
+    const original = cardsByLesson[lessonId] ?? [];
+    const fromIndex = original.findIndex((card) => card.id === fromCardId);
+    const toIndex = original.findIndex((card) => card.id === toCardId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const reordered = [...original];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    const cardIds = reordered.map((card) => card.id);
+    setCardsByLesson((current) => ({ ...current, [lessonId]: reordered }));
+    setCardOrderByLesson((current) => ({ ...current, [lessonId]: cardIds }));
+    if (isBaseLessonId(lessonId)) setAdminDrafts((current) => ({ ...current, [lessonId]: orderCards(current[lessonId] ?? [], cardIds) }));
+    else setCustomLessonCards((current) => ({ ...current, [lessonId]: orderCards(current[lessonId] ?? [], cardIds) }));
+    setAdminError("");
+    try {
+      const isBaseLesson = isBaseLessonId(lessonId);
+      const response = await fetch(adminApiPath(isBaseLesson ? `/api/admin/cards/${lessonId}/order` : `/api/admin/lessons/${lessonId}/cards/order`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(isBaseLesson ? { "X-Admin-Password": adminPassword } : {}) },
+        body: JSON.stringify({ cardIds }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "並び替えを保存できませんでした。");
+      setAdminNotice("問題の順番を保存しました。");
+    } catch (error) {
+      setCardsByLesson((current) => ({ ...current, [lessonId]: original }));
+      setCardOrderByLesson((current) => ({ ...current, [lessonId]: original.map((card) => card.id) }));
+      if (isBaseLessonId(lessonId)) setAdminDrafts((current) => ({ ...current, [lessonId]: orderCards(current[lessonId] ?? [], original.map((card) => card.id)) }));
+      else setCustomLessonCards((current) => ({ ...current, [lessonId]: orderCards(current[lessonId] ?? [], original.map((card) => card.id)) }));
+      setAdminError(error instanceof Error ? error.message : "並び替えを保存できませんでした。");
+    }
+  };
+
+  const dropCard = (lessonId: string, targetCardId: number) => {
+    if (draggedCard?.lessonId === lessonId) void reorderCards(lessonId, draggedCard.cardId, targetCardId);
+    setDraggedCard(null);
+  };
+
   const lessonLabel = (lessonId: LessonId) => LESSONS[lessonId as BaseLessonId]?.label
     ?? (() => {
       const lesson = addedLessons.find((item) => item.id === lessonId);
@@ -1785,9 +1837,9 @@ export default function Home() {
                   <summary>{lesson.date}　{lesson.teacher}　{lesson.title}<span>＋</span></summary>
                   <div>
                     <button type="button" className="admin-save-button" onClick={() => addCustomLessonCard(lesson.id)} disabled={adminBusyCard !== null}>＋ 問題を追加</button>
-                    {(customLessonCards[lesson.id] ?? []).map((card) => (
-                      <div className="custom-card-edit" key={card.id}>
-                        <b>Q{String(card.id).padStart(2, "0")}</b>
+                    {(customLessonCards[lesson.id] ?? []).map((card, cardIndex) => (
+                      <div className="custom-card-edit" key={card.id} draggable onDragStart={() => setDraggedCard({ lessonId: lesson.id, cardId: card.id })} onDragOver={(event) => event.preventDefault()} onDrop={() => dropCard(lesson.id, card.id)}>
+                        <b>↕ Q{String(cardIndex + 1).padStart(2, "0")}</b>
                         <textarea value={card.question} onChange={(event) => setCustomLessonCards((current) => ({ ...current, [lesson.id]: (current[lesson.id] ?? []).map((item) => item.id === card.id ? { ...item, question: event.target.value } : item) }))} aria-label={`Q${card.id} 問題文`} />
                         <textarea value={card.answer} onChange={(event) => setCustomLessonCards((current) => ({ ...current, [lesson.id]: (current[lesson.id] ?? []).map((item) => item.id === card.id ? { ...item, answer: event.target.value } : item) }))} aria-label={`Q${card.id} 解答文`} />
                         <div><button type="button" className="admin-save-button" onClick={() => saveCustomLessonCard(lesson.id, card)} disabled={adminBusyCard !== null}>保存</button><button type="button" className="admin-delete-button" onClick={() => deleteCustomLessonCard(lesson.id, card.id)} disabled={adminBusyCard !== null}>削除</button></div>
@@ -1951,9 +2003,9 @@ export default function Home() {
                 const hasOverride = publishedCard?.question !== baseCard?.question
                   || publishedCard?.answer !== baseCard?.answer;
                 return (
-                  <details className="admin-card-editor" key={`${adminSection}-${card.id}`}>
+                  <details className="admin-card-editor" key={`${adminSection}-${card.id}`} draggable onDragStart={() => setDraggedCard({ lessonId: adminSection, cardId: card.id })} onDragOver={(event) => event.preventDefault()} onDrop={() => dropCard(adminSection, card.id)}>
                     <summary>
-                      <span>Q{String(cardIndex + 1).padStart(2, "0")}</span>
+                      <span>↕ Q{String(cardIndex + 1).padStart(2, "0")}</span>
                       <strong>{card.question || "（問題文未入力）"}</strong>
                       {hasOverride && <small>編集済み</small>}
                       <i aria-hidden="true">＋</i>
@@ -2338,9 +2390,13 @@ export default function Home() {
               <details
                 key={card.id}
                 className={reviewSet.has(card.id) ? "question-row question-row--review" : "question-row"}
+                draggable
+                onDragStart={() => setDraggedCard({ lessonId: selectedLesson, cardId: card.id })}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => dropCard(selectedLesson, card.id)}
               >
                 <summary>
-                  <span className="question-number">Q{String(cardNumber + 1).padStart(2, "0")}</span>
+                  <span className="question-number">↕ Q{String(cardNumber + 1).padStart(2, "0")}</span>
                   <span><MahjongText text={card.question} /></span>
                   {reviewSet.has(card.id) && <span className="review-tag">解き直し</span>}
                   <span className="chevron" aria-hidden="true">＋</span>

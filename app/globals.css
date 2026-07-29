@@ -2193,6 +2193,18 @@ summary:focus-visible {
   transform: rotate(45deg);
 }
 
+.question-row[draggable="true"],
+.admin-card-editor[draggable="true"],
+.custom-card-edit[draggable="true"] {
+  cursor: grab;
+}
+
+.question-row[draggable="true"]:active,
+.admin-card-editor[draggable="true"]:active,
+.custom-card-edit[draggable="true"]:active {
+  cursor: grabbing;
+}
+
 .list-answer {
   border-top: 1px solid var(--line);
   padding: 13px 16px 16px 48px;
