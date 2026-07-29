@@ -1,5 +1,10 @@
-export const APP_VERSION = 52;
+export const APP_VERSION = 53;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/29 22:45",
+    title: "ver53 問題面を黒地・白文字に変更",
+    body: "フラッシュカードの問題面を黒地・白文字にして、解説面との区別をわかりやすくしました。",
+  },
   {
     date: "2026/7/29 22:30",
     title: "ver52 添付画像まわりの余白を圧縮",

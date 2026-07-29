@@ -61,6 +61,14 @@ test("progress counts the current card without half-step reveal progress", () =>
 
 test("flip styles preserve long content and reduced-motion preferences", () => {
   assert.match(cssSource, /\.flashcard--flippable\s*\{[\s\S]*?perspective: 1200px;/);
+  assert.match(
+    cssSource,
+    /\.flashcard--flippable:not\(\.flashcard--revealed\)\s*\{[\s\S]*?background: linear-gradient\(145deg, #242424, #000000\);[\s\S]*?color: #ffffff;/,
+  );
+  assert.match(
+    cssSource,
+    /\.flashcard--flippable:not\(\.flashcard--revealed\) \.card-meta,[\s\S]*?\.question-text\s*\{[\s\S]*?color: #ffffff;/,
+  );
   assert.match(cssSource, /\.card-face\s*\{[\s\S]*?animation: card-turn-in 300ms/);
   assert.match(cssSource, /\.reveal-button--back\s*\{/);
   assert.match(

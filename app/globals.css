@@ -1422,6 +1422,21 @@ summary:focus-visible {
   perspective: 1200px;
 }
 
+.flashcard--flippable:not(.flashcard--revealed) {
+  border-color: #000000;
+  background: linear-gradient(145deg, #242424, #000000);
+  color: #ffffff;
+}
+
+.flashcard--flippable:not(.flashcard--revealed) .card-meta,
+.flashcard--flippable:not(.flashcard--revealed) .question-text {
+  color: #ffffff;
+}
+
+.flashcard--flippable:not(.flashcard--revealed) .card-meta strong {
+  border-color: rgba(255, 255, 255, 0.54);
+}
+
 .card-face {
   display: grid;
   min-height: 100%;
