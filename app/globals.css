@@ -2377,6 +2377,12 @@ summary:focus-visible {
   font-size: 0.82rem;
 }
 
+.list-add-bottom {
+  display: flex;
+  justify-content: center;
+  margin: 18px 0 10px;
+}
+
 .favorite-lesson-label {
   display: block;
   margin-bottom: 3px;

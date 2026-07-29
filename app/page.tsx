@@ -2862,6 +2862,12 @@ export default function Home() {
             ))}
           </div>
 
+          <div className="list-add-bottom">
+            <button className="primary-button list-add-button" type="button" onClick={addCardFromList} disabled={adminBusyCard !== null} data-testid="add-card-from-list-bottom">
+              ＋ 問題を追加
+            </button>
+          </div>
+
           <button className="sticky-home-button" onClick={() => setScreen("home")}>
             ホームへ戻る
           </button>

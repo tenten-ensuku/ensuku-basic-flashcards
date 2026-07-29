@@ -14,5 +14,6 @@ test("favorites can be opened from home and toggled from sessions and lists", ()
 
 test("flashcard lists expose add and delete controls", () => {
   assert.match(source, /data-testid="add-card-from-list"/);
+  assert.match(source, /data-testid="add-card-from-list-bottom"/);
   assert.match(source, /deleteCardFromList\(card, cardNumber \+ 1\)/);
 });
