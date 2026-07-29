@@ -379,6 +379,7 @@ export default function Home() {
   const [addedLessons, setAddedLessons] = useState<AddedLesson[]>([]);
   const [deletedLessons, setDeletedLessons] = useState<AddedLesson[]>([]);
   const [lessonEditDraft, setLessonEditDraft] = useState<AddedLesson | null>(null);
+  const [lessonEditResources, setLessonEditResources] = useState<Array<Omit<LessonResource, "id" | "lessonId">>>([]);
   const [draggedLessonId, setDraggedLessonId] = useState<string | null>(null);
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
   const [customLessonCards, setCustomLessonCards] = useState<Record<string, Flashcard[]>>({});
@@ -889,12 +890,16 @@ export default function Home() {
       const response = await fetch(adminApiPath(`/api/admin/lessons/${lessonEditDraft.id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(lessonEditDraft),
+        body: JSON.stringify({ ...lessonEditDraft, resources: lessonEditResources }),
       });
-      const payload = await response.json() as { error?: string; lesson?: AddedLesson };
+      const payload = await response.json() as { error?: string; lesson?: AddedLesson; resources?: LessonResource[] };
       if (!response.ok || !payload.lesson) throw new Error(payload.error ?? "授業情報を保存できませんでした。");
       setAddedLessons((current) => current.map((lesson) => lesson.id === lessonEditDraft.id ? { ...lesson, ...payload.lesson } : lesson));
+      if (payload.resources) {
+        setLessonResources((current) => [...current.filter((resource) => resource.lessonId !== lessonEditDraft.id), ...payload.resources!]);
+      }
       setLessonEditDraft(null);
+      setLessonEditResources([]);
       setAdminNotice("授業情報を保存しました。");
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "授業情報を保存できませんでした。");
@@ -1033,6 +1038,25 @@ export default function Home() {
       if (!response.ok || !payload.url) throw new Error(payload.error ?? "画像をアップロードできませんでした。");
       setNewLessonResources((current) => [...current, { kind: "image", label: file.name, url: payload.url! }]);
       setAdminNotice("授業資料の画像を追加しました。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const uploadLessonEditImage = async (file: File) => {
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
+      setAdminError("JPEG・PNG・WebP・GIF画像を選択してください。");
+      return;
+    }
+    setAdminBusyCard(0);
+    try {
+      const response = await fetch(adminApiPath("/api/images"), { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const payload = await response.json() as { error?: string; url?: string };
+      if (!response.ok || !payload.url) throw new Error(payload.error ?? "画像をアップロードできませんでした。");
+      setLessonEditResources((current) => [...current, { kind: "image", label: file.name, url: payload.url! }]);
+      setAdminNotice("授業資料の画像を追加しました。授業情報を保存すると公開されます。");
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
     } finally {
@@ -2168,10 +2192,26 @@ export default function Home() {
                         <label>先生名<input value={lessonEditDraft.teacher} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, teacher: event.target.value })} /></label>
                         <label>授業タイトル<input value={lessonEditDraft.title} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, title: event.target.value })} /></label>
                         <label>動画URL<input type="url" value={lessonEditDraft.videoUrl} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, videoUrl: event.target.value })} /></label>
-                        <div className="admin-card-actions"><button type="button" className="admin-save-button" onClick={saveLessonMetadata} disabled={adminBusyCard !== null}>授業情報を保存</button><button type="button" className="text-button" onClick={() => setLessonEditDraft(null)}>キャンセル</button></div>
+                        <div className="lesson-resource-fields lesson-resource-fields--editor">
+                          <label>資料URL（任意）<input type="url" placeholder="GoogleドキュメントなどのURL" onKeyDown={(event) => {
+                            if (event.key !== "Enter") return;
+                            event.preventDefault();
+                            const url = event.currentTarget.value.trim();
+                            if (!url) return;
+                            setLessonEditResources((current) => [...current, { kind: "link", label: "資料", url }]);
+                            event.currentTarget.value = "";
+                          }} /></label>
+                          <label className="image-upload image-upload--drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files?.[0]; if (file) void uploadLessonEditImage(file); }}>
+                            画像資料を追加
+                            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadLessonEditImage(file); event.currentTarget.value = ""; }} />
+                            <span>クリック・ドロップで追加</span>
+                          </label>
+                          {lessonEditResources.length > 0 && <div className="lesson-resource-drafts">{lessonEditResources.map((resource, index) => <span key={`${resource.url}-${index}`}>{resource.kind === "image" ? "▧ 画像" : "↗ 資料"}<button type="button" onClick={() => setLessonEditResources((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></span>)}</div>}
+                        </div>
+                        <div className="admin-card-actions"><button type="button" className="admin-save-button" onClick={saveLessonMetadata} disabled={adminBusyCard !== null}>授業情報を保存</button><button type="button" className="text-button" onClick={() => { setLessonEditDraft(null); setLessonEditResources([]); }}>キャンセル</button></div>
                       </div>
                     ) : (
-                      <div className="admin-card-actions"><button type="button" className="text-button" onClick={() => setLessonEditDraft({ ...lesson })}>授業情報を編集</button><button type="button" className="admin-delete-button" onClick={() => void deleteLessonMetadata(lesson)} disabled={adminBusyCard !== null}>授業を削除</button></div>
+                      <div className="admin-card-actions"><button type="button" className="text-button" onClick={() => { setLessonEditDraft({ ...lesson }); setLessonEditResources(lessonResources.filter((resource) => resource.lessonId === lesson.id).map(({ kind, label, url }) => ({ kind, label, url }))); }}>授業情報を編集</button><button type="button" className="admin-delete-button" onClick={() => void deleteLessonMetadata(lesson)} disabled={adminBusyCard !== null}>授業を削除</button></div>
                     )}
                     <button type="button" className="admin-save-button" onClick={() => addCustomLessonCard(lesson.id)} disabled={adminBusyCard !== null}>＋ 問題を追加</button>
                     {(customLessonCards[lesson.id] ?? []).map((card, cardIndex) => (

@@ -18,6 +18,15 @@ test("shared lesson metadata supports edit, logical delete, restore, and orderin
   assert.match(pageSource, /授業を復元/);
 });
 
+test("existing lessons can save and manage attached resource URLs", () => {
+  assert.match(pageSource, /const \[lessonEditResources, setLessonEditResources\]/);
+  assert.match(pageSource, /資料URL（任意）/);
+  assert.match(pageSource, /resources: lessonEditResources/);
+  assert.match(workerSource, /const resources = Array\.isArray\(body\?\.resources\) \? body\.resources : null/);
+  assert.match(workerSource, /DELETE FROM lesson_resources WHERE lesson_id = \?/);
+  assert.match(workerSource, /INSERT INTO lesson_resources/);
+});
+
 test("quiz editors accept image drops for both faces", () => {
   assert.match(pageSource, /const uploadQuizImage = async/);
   assert.match(pageSource, /問題に画像を追加（ドロップ・貼り付け可）/);

@@ -254,6 +254,7 @@ export async function handleAdminApi(request, env) {
       const teacher = typeof body?.teacher === "string" ? body.teacher.trim() : "";
       const title = typeof body?.title === "string" ? body.title.trim() : "";
       const videoUrl = typeof body?.videoUrl === "string" ? body.videoUrl.trim() : "";
+      const resources = Array.isArray(body?.resources) ? body.resources : null;
       if (!date || !teacher || !title) return json(request, { error: "日付・先生名・授業タイトルを入力してください。" }, 400);
       if (videoUrl && !/^https?:\/\//i.test(videoUrl)) return json(request, { error: "動画URLは https:// または http:// で入力してください。" }, 400);
       await env.DB.prepare(`
@@ -261,7 +262,23 @@ export async function handleAdminApi(request, env) {
         VALUES (?, ?, ?, ?, ?, 0, COALESCE((SELECT sort_order FROM lesson_titles WHERE lesson_id = ?), 0))
         ON CONFLICT(lesson_id) DO UPDATE SET lesson_date = excluded.lesson_date, teacher = excluded.teacher, title = excluded.title, video_url = excluded.video_url, deleted = 0
       `).bind(lessonId, date, teacher, title, videoUrl, lessonId).run();
-      return json(request, { ok: true, lesson: { id: lessonId, date, teacher, title, videoUrl } });
+      const savedResources = [];
+      if (resources) {
+        await env.DB.prepare("DELETE FROM lesson_resources WHERE lesson_id = ?").bind(lessonId).run();
+        for (let index = 0; index < resources.length; index += 1) {
+          const resource = resources[index];
+          const kind = resource?.kind === "image" ? "image" : "link";
+          const url = typeof resource?.url === "string" ? resource.url.trim() : "";
+          const label = typeof resource?.label === "string" ? resource.label.trim() : "";
+          if (!url || !/^https?:\/\//i.test(url)) continue;
+          const id = `resource-${crypto.randomUUID()}`;
+          await env.DB.prepare(
+            "INSERT INTO lesson_resources (resource_id, lesson_id, kind, label, url, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+          ).bind(id, lessonId, kind, label.slice(0, 160), url, index).run();
+          savedResources.push({ id, lessonId, kind, label: label.slice(0, 160), url });
+        }
+      }
+      return json(request, { ok: true, lesson: { id: lessonId, date, teacher, title, videoUrl }, ...(resources ? { resources: savedResources } : {}) });
     }
     if (request.method === "DELETE") {
       await env.DB.prepare("UPDATE lesson_titles SET deleted = 1 WHERE lesson_id = ?").bind(lessonId).run();
