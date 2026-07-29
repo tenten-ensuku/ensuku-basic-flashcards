@@ -37,6 +37,13 @@ test("the app icon can be uploaded, set by URL, and shared through the API", () 
   assert.match(workerSource, /APP_SETTINGS_SCHEMA_SQL/);
 });
 
+test("base lessons expose the same lesson metadata editor as added lessons", () => {
+  assert.match(pageSource, /講師名・動画・資料を編集/);
+  assert.match(pageSource, /BASE_LESSON_METADATA/);
+  assert.match(pageSource, /baseLessonMetadata/);
+  assert.match(pageSource, /資料URL（Enterで追加）/);
+});
+
 test("launcher icons stay separate from the configurable lesson icon", () => {
   const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
   assert.match(layoutSource, /icons\/ensuku-192\.png\?v=43/);

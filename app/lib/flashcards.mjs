@@ -1,5 +1,10 @@
-export const APP_VERSION = 46;
+export const APP_VERSION = 47;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/29 21:35",
+    title: "ver47 既存授業の授業情報を編集可能に",
+    body: "7/18・7/14・7/2の講師名、授業タイトル、動画URL、添付資料を管理画面から編集できるようにしました。",
+  },
   {
     date: "2026/7/29 21:20",
     title: "ver46 設定・アナウンスを追加",

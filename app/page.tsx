@@ -110,6 +110,11 @@ const ADMIN_API_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? "";
 const DEFAULT_APP_ICON_URL = `${BASE_PATH}/icons/serina.png`;
 const FAVORITES_SESSION_ID = "__favorites__";
 const APPEARANCE_STORAGE_KEY = "ensuku-basic-flashcards-appearance-v1";
+const BASE_LESSON_METADATA: Record<BaseLessonId, AddedLesson> = {
+  tenten0718: { id: "tenten0718", date: "7/18", teacher: "てんてん先生", title: "6枚形+完全形何切る？", videoUrl: LESSONS.tenten0718.videoUrl },
+  tenten: { id: "tenten", date: "7/14", teacher: "てんてん先生", title: "基礎講義復習", videoUrl: LESSONS.tenten.videoUrl },
+  nejimaki: { id: "nejimaki", date: "7/2", teacher: "ねじまき鳥先生", title: "基礎講義②", videoUrl: LESSONS.nejimaki.videoUrl },
+};
 
 function favoriteSessionCardId(lessonId: string, cardId: number) {
   let hash = 0;
@@ -410,6 +415,7 @@ export default function Home() {
   const [lessonEditResources, setLessonEditResources] = useState<Array<Omit<LessonResource, "id" | "lessonId">>>([]);
   const [draggedLessonId, setDraggedLessonId] = useState<string | null>(null);
   const [lessonResources, setLessonResources] = useState<LessonResource[]>([]);
+  const [baseLessonMetadata, setBaseLessonMetadata] = useState<Partial<Record<BaseLessonId, AddedLesson>>>({});
   const [appIconUrl, setAppIconUrl] = useState(DEFAULT_APP_ICON_URL);
   const [appIconDraft, setAppIconDraft] = useState("");
   const [appTone, setAppTone] = useState<AppTone>("mint");
@@ -510,7 +516,9 @@ export default function Home() {
         setQuizBank(nextQuiz);
         setAdminQuizDrafts(nextQuiz);
         setDeletedQuizIds(quizOverrides.filter((item) => item.deleted).map((item) => item.id));
-        setAddedLessons([...lessons].sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || right.date.localeCompare(left.date, "ja")));
+        const baseMetadata = lessons.filter((lesson) => isBaseLessonId(lesson.id)) as AddedLesson[];
+        setBaseLessonMetadata(Object.fromEntries(baseMetadata.map((lesson) => [lesson.id as BaseLessonId, lesson])));
+        setAddedLessons(lessons.filter((lesson) => !isBaseLessonId(lesson.id)).sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || right.date.localeCompare(left.date, "ja")));
         setDeletedLessons(deletedLessons);
         setLessonResources(resources);
         setAppIconUrl(settings.iconUrl || DEFAULT_APP_ICON_URL);
@@ -984,7 +992,12 @@ export default function Home() {
       });
       const payload = await response.json() as { error?: string; lesson?: AddedLesson; resources?: LessonResource[] };
       if (!response.ok || !payload.lesson) throw new Error(payload.error ?? "授業情報を保存できませんでした。");
-      setAddedLessons((current) => current.map((lesson) => lesson.id === lessonEditDraft.id ? { ...lesson, ...payload.lesson } : lesson));
+      if (isBaseLessonId(lessonEditDraft.id)) {
+        const baseLessonId = lessonEditDraft.id as BaseLessonId;
+        setBaseLessonMetadata((current) => ({ ...current, [baseLessonId]: { ...BASE_LESSON_METADATA[baseLessonId], ...payload.lesson! } }));
+      } else {
+        setAddedLessons((current) => current.map((lesson) => lesson.id === lessonEditDraft.id ? { ...lesson, ...payload.lesson } : lesson));
+      }
       if (payload.resources) {
         setLessonResources((current) => [...current.filter((resource) => resource.lessonId !== lessonEditDraft.id), ...payload.resources!]);
       }
@@ -1796,12 +1809,15 @@ export default function Home() {
     else void deleteCustomLessonCard(selectedLesson, card.id);
   };
 
-  const lessonLabel = (lessonId: LessonId) => lessonId === FAVORITES_SESSION_ID ? "お気に入り"
-    : LESSONS[lessonId as BaseLessonId]?.label
-    ?? (() => {
-      const lesson = addedLessons.find((item) => item.id === lessonId);
-      return lesson ? `${lesson.date}　${lesson.teacher}　${lesson.title}` : "授業の復習";
-    })();
+  const lessonLabel = (lessonId: LessonId) => {
+    if (lessonId === FAVORITES_SESSION_ID) return "お気に入り";
+    if (isBaseLessonId(lessonId)) {
+      const lesson = baseLessonMetadata[lessonId] ?? BASE_LESSON_METADATA[lessonId];
+      return `${lesson.date}　${lesson.teacher}　${lesson.title}`;
+    }
+    const lesson = addedLessons.find((item) => item.id === lessonId);
+    return lesson ? `${lesson.date}　${lesson.teacher}　${lesson.title}` : "授業の復習";
+  };
 
   const renderAddedLessonPanel = (lesson: AddedLesson) => {
     const cards = cardsByLesson[lesson.id] ?? [];
@@ -1854,11 +1870,13 @@ export default function Home() {
 
   const renderLessonPanel = (lessonId: BaseLessonId) => {
     const lesson = LESSONS[lessonId];
+    const metadata = baseLessonMetadata[lessonId] ?? BASE_LESSON_METADATA[lessonId];
+    const label = `${metadata.date}　${metadata.teacher}　${metadata.title}`;
     const lessonReviewIds = activeReviewCardIdsByLesson[lessonId];
     const isOpen = openHomeSection === lessonId;
     const contentId = `lesson-content-${lessonId}`;
     return (
-      <section className={`mode-panel mode-panel--collapsible ${isOpen ? "mode-panel--open" : ""}`} aria-label={lesson.label} key={lessonId}>
+      <section className={`mode-panel mode-panel--collapsible ${isOpen ? "mode-panel--open" : ""}`} aria-label={label} key={lessonId}>
         <div className="lesson-summary">
           <button
             className="lesson-summary__toggle"
@@ -1868,19 +1886,19 @@ export default function Home() {
             aria-controls={contentId}
             data-testid={`toggle-lesson-${lessonId}`}
           >
-            <span className="lesson-summary__title">{lesson.label}</span>
+            <span className="lesson-summary__title">{label}</span>
             <span className="review-count">
               解き直し <strong>{lessonReviewIds.length}</strong>枚
             </span>
             <span className="lesson-summary__chevron" aria-hidden="true">{isOpen ? "⌃" : "⌄"}</span>
           </button>
-          {lesson.videoUrl && (
+          {metadata.videoUrl && (
             <a
               className="youtube-icon-button"
-              href={lesson.videoUrl}
+              href={metadata.videoUrl}
               target="_blank"
               rel="noreferrer"
-              aria-label={`${lesson.label}の授業動画をYouTubeで見る`}
+              aria-label={`${label}の授業動画をYouTubeで見る`}
               title="授業動画をYouTubeで見る"
             >
               <span className="youtube-play-mark" aria-hidden="true" />
@@ -2501,6 +2519,28 @@ export default function Home() {
               {adminError || adminNotice}
             </p>
           )}
+
+          {adminSection !== "quiz" && (() => {
+            const metadata = baseLessonMetadata[adminSection] ?? BASE_LESSON_METADATA[adminSection];
+            const editing = lessonEditDraft?.id === adminSection;
+            return <details className="admin-card-editor admin-lesson-metadata" open={editing}>
+              <summary><span>授業情報</span><strong>{metadata.date}　{metadata.teacher}　{metadata.title}</strong><i aria-hidden="true">＋</i></summary>
+              <div className="admin-card-form">
+                {editing ? <>
+                  <label>日付<input value={lessonEditDraft.date} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, date: event.target.value })} /></label>
+                  <label>先生名<input value={lessonEditDraft.teacher} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, teacher: event.target.value })} /></label>
+                  <label>授業タイトル<input value={lessonEditDraft.title} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, title: event.target.value })} /></label>
+                  <label>動画URL<input type="url" value={lessonEditDraft.videoUrl} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, videoUrl: event.target.value })} /></label>
+                  <label>資料URL（Enterで追加）<input type="url" placeholder="Googleドキュメント・画像などのURL" onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); const url = event.currentTarget.value.trim(); if (!url) return; setLessonEditResources((current) => [...current, { kind: /\.(png|jpe?g|webp|gif)(?:\?|$)/i.test(url) ? "image" : "link", label: "", url }]); event.currentTarget.value = ""; }} /></label>
+                  <label className="image-upload image-upload--drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files?.[0]; if (file) void uploadLessonEditImage(file); }}>
+                    資料画像を追加<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadLessonEditImage(file); event.currentTarget.value = ""; }} /><span>クリック・ドラッグ＆ドロップで追加</span>
+                  </label>
+                  {lessonEditResources.length > 0 && <div className="lesson-resource-drafts">{lessonEditResources.map((resource, index) => <span key={`${resource.url}-${index}`}>{resource.kind === "image" ? "▧ 画像" : "↗ 資料"}<button type="button" onClick={() => setLessonEditResources((current) => current.filter((_, itemIndex) => itemIndex !== index))} title="この資料を削除">×</button></span>)}</div>}
+                  <div className="admin-card-actions"><button type="button" className="admin-save-button" onClick={saveLessonMetadata} disabled={adminBusyCard !== null}>授業情報を保存</button><button type="button" className="text-button" onClick={() => { setLessonEditDraft(null); setLessonEditResources([]); }}>キャンセル</button></div>
+                </> : <button type="button" className="text-button" onClick={() => { setLessonEditDraft({ ...metadata }); setLessonEditResources(lessonResources.filter((resource) => resource.lessonId === adminSection).map(({ kind, label, url }) => ({ kind, label, url }))); }}>講師名・動画・資料を編集</button>}
+              </div>
+            </details>;
+          })()}
 
           {adminSection === "quiz" ? (
             <div className="admin-card-list" data-testid="admin-quiz-list">
