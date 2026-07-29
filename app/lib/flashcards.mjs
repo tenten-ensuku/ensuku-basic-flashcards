@@ -1,5 +1,10 @@
-export const APP_VERSION = 49;
+export const APP_VERSION = 50;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/29 22:10",
+    title: "ver50 問題編集中の並べ替えを停止",
+    body: "問題一覧で編集を開いているカードは、文字の選択や削除中にドラッグ移動しないようにしました。",
+  },
   {
     date: "2026/7/29 22:00",
     title: "ver49 問題画像の差し替えに対応",

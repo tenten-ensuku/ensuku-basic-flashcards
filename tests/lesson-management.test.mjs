@@ -69,3 +69,8 @@ test("list card editor can replace the first image on either face", () => {
   assert.match(pageSource, /解説の画像を差し替え/);
   assert.match(pageSource, /currentText\.replace\(IMAGE_MARKDOWN_PATTERN, imageMarkdown\)/);
 });
+
+test("an open list card editor is not draggable", () => {
+  assert.match(pageSource, /draggable=\{listEditDraft\?\.id !== card\.id\}/);
+  assert.match(pageSource, /if \(listEditDraft\?\.id === card\.id\) \{[\s\S]*?event\.preventDefault\(\)/);
+});

@@ -3136,8 +3136,14 @@ export default function Home() {
               <details
                 key={card.id}
                 className={reviewSet.has(card.id) ? "question-row question-row--review" : "question-row"}
-                draggable
-                onDragStart={() => setDraggedCard({ lessonId: selectedLesson, cardId: card.id })}
+                draggable={listEditDraft?.id !== card.id}
+                onDragStart={(event) => {
+                  if (listEditDraft?.id === card.id) {
+                    event.preventDefault();
+                    return;
+                  }
+                  setDraggedCard({ lessonId: selectedLesson, cardId: card.id });
+                }}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => dropCard(selectedLesson, card.id)}
               >
