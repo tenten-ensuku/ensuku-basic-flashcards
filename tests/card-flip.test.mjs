@@ -48,6 +48,7 @@ test("flashcard sessions can resume and move to adjacent cards", () => {
   assert.match(pageSource, /screen--home\$\{isContentLoading \? " screen--home-loading" : ""\}/);
   assert.match(pageSource, /授業カードを読み込んでいます…/);
   assert.match(cssSource, /\.screen--home-loading > \.mode-panel,[\s\S]*?visibility: hidden;/);
+  assert.match(cssSource, /\.favorite-launch-panel \.lesson-summary__toggle\s*\{[\s\S]*?background: linear-gradient\(145deg, #fffdf2, #f7e6ab\);/);
   assert.match(pageSource, /type SavedFlashcardSession =/);
   assert.match(pageSource, /setSavedFlashcardSession\(stored\.session as SavedFlashcardSession \| null\)/);
   assert.match(pageSource, /const resumeSession = useCallback/);

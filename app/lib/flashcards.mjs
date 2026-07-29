@@ -1,5 +1,10 @@
-export const APP_VERSION = 55;
+export const APP_VERSION = 56;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 00:20",
+    title: "ver56 お気に入りタブを黄色に変更",
+    body: "ホーム上部のお気に入りタブを、お気に入り追加ボタンと同じ黄色系の見た目にしました。",
+  },
   {
     date: "2026/7/30 00:10",
     title: "ver55 授業カードをまとめて表示",

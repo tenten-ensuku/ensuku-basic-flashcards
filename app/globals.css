@@ -1048,6 +1048,29 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
+.favorite-launch-panel .lesson-summary__toggle {
+  border: 1px solid rgba(178, 133, 39, 0.42);
+  background: linear-gradient(145deg, #fffdf2, #f7e6ab);
+  box-shadow: 0 4px 12px rgba(148, 100, 17, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  color: #775311;
+}
+
+.favorite-launch-panel .lesson-summary__toggle:hover,
+.favorite-launch-panel .lesson-summary__toggle:focus-visible {
+  background: linear-gradient(145deg, #ffefad, #e9bf55);
+}
+
+.favorite-launch-panel .lesson-summary__title,
+.favorite-launch-panel .review-count {
+  color: #775311;
+}
+
+.favorite-launch-panel .lesson-summary__chevron {
+  border-color: rgba(178, 133, 39, 0.42);
+  background: rgba(255, 253, 242, 0.76);
+  color: #b87b14;
+}
+
 .mode-panel__content {
   margin-top: 8px;
   padding-top: 8px;
