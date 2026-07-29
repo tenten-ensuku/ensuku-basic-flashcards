@@ -37,6 +37,12 @@ test("the app icon can be uploaded, set by URL, and shared through the API", () 
   assert.match(workerSource, /APP_SETTINGS_SCHEMA_SQL/);
 });
 
+test("launcher icons stay separate from the configurable lesson icon", () => {
+  const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  assert.match(layoutSource, /icons\/ensuku-192\.png\?v=43/);
+  assert.doesNotMatch(layoutSource, /icons\/serina\.png/);
+});
+
 test("quiz editors accept image drops for both faces", () => {
   assert.match(pageSource, /const uploadQuizImage = async/);
   assert.match(pageSource, /問題に画像を追加（ドロップ・貼り付け可）/);
