@@ -41,6 +41,10 @@ test("rating is available only on the answer face and resets for the next card",
 });
 
 test("flashcard sessions can resume and move to adjacent cards", () => {
+  assert.match(pageSource, /const \[isContentLoading, setIsContentLoading\] = useState\(true\);/);
+  assert.match(pageSource, /setCardsByLesson\(orderedCards\);[\s\S]*?setIsContentLoading\(false\);/);
+  assert.match(pageSource, /if \(isContentLoading\) return;[\s\S]*?const sourceCards = cardsByLesson/);
+  assert.match(pageSource, /disabled=\{isContentLoading\}/);
   assert.match(pageSource, /type SavedFlashcardSession =/);
   assert.match(pageSource, /setSavedFlashcardSession\(stored\.session as SavedFlashcardSession \| null\)/);
   assert.match(pageSource, /const resumeSession = useCallback/);

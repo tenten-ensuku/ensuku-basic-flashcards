@@ -1,5 +1,10 @@
-export const APP_VERSION = 53;
+export const APP_VERSION = 54;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/29 23:55",
+    title: "ver54 共有問題の読み込み完了後に開始",
+    body: "共有編集データの読み込み中はフラッシュカードを開始できないようにし、問題数や牌画像が初期データへ戻らないようにしました。",
+  },
   {
     date: "2026/7/29 22:45",
     title: "ver53 問題面を黒地・白文字に変更",

@@ -399,6 +399,7 @@ function LessonTitle({ label }: { label: string }) {
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("home");
   const [cardsByLesson, setCardsByLesson] = useState<CardsByLesson>(cloneBaseCards);
+  const [isContentLoading, setIsContentLoading] = useState(true);
   const [cardOrderByLesson, setCardOrderByLesson] = useState<Record<string, number[]>>({});
   const [draggedCard, setDraggedCard] = useState<{ lessonId: string; cardId: number } | null>(null);
   const [adminDrafts, setAdminDrafts] = useState<CardsByLesson>(cloneBaseCards);
@@ -526,9 +527,11 @@ export default function Home() {
         setAppIconUrl(settings.iconUrl || DEFAULT_APP_ICON_URL);
         setAppIconDraft(settings.iconUrl ?? "");
         setCustomLessonCards(nextCustomCards);
+        setIsContentLoading(false);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        setIsContentLoading(false);
         // APIに接続できない場合も、収録済みの問題で学習を続けられる。
       });
     return () => controller.abort();
@@ -691,6 +694,7 @@ export default function Home() {
 
   const startSession = useCallback(
     (lessonId: LessonId, mode: SessionMode) => {
+      if (isContentLoading) return;
       const sourceCards = cardsByLesson[lessonId] ?? [];
       const reviewIds = new Set(activeReviewCardIdsByLesson[lessonId] ?? []);
       const cards = mode === "all" ? [...sourceCards] : sourceCards.filter((card) => reviewIds.has(card.id));
@@ -714,7 +718,7 @@ export default function Home() {
       safeSave(activeReviewCardIdsByLesson, lastSession, initialSession);
       setScreen("session");
     },
-    [activeReviewCardIdsByLesson, cardsByLesson, lastSession],
+    [activeReviewCardIdsByLesson, cardsByLesson, isContentLoading, lastSession],
   );
 
   const startFavoriteSession = useCallback(() => {
@@ -741,6 +745,7 @@ export default function Home() {
   }, [activeReviewCardIdsByLesson, favoriteSessionCards, lastSession]);
 
   const resumeSession = useCallback(() => {
+    if (isContentLoading) return;
     if (!savedFlashcardSession) return;
     const sourceCards = savedFlashcardSession.lessonId === FAVORITES_SESSION_ID
       ? favoriteSessionCards
@@ -770,7 +775,7 @@ export default function Home() {
     setIsAdvancing(false);
     startedAtRef.current = Date.now() - (savedFlashcardSession.elapsedSeconds * 1000);
     setScreen("session");
-  }, [cardsByLesson, favoriteSessionCards, savedFlashcardSession]);
+  }, [cardsByLesson, favoriteSessionCards, isContentLoading, savedFlashcardSession]);
 
   const startQuiz = useCallback((questions?: readonly QuizQuestion[]) => {
     const source = questions ?? quizBank;
@@ -1862,15 +1867,15 @@ export default function Home() {
         <div className="mode-panel__content" id={contentId}>
           {cards.length > 0 ? <>
             {savedFlashcardSession?.lessonId === lesson.id && (
-              <button className="resume-session-button" onClick={resumeSession} data-testid={`resume-${lesson.id}`}>
+              <button className="resume-session-button" onClick={resumeSession} disabled={isContentLoading} data-testid={`resume-${lesson.id}`}>
                 ▶ 途中から再開 <small>Q{String(savedFlashcardSession.currentIndex + 1).padStart(2, "0")}から</small>
               </button>
             )}
             <div className="mode-grid">
-              <button className="mode-card mode-card--primary" onClick={() => startSession(lesson.id, "all")} data-testid={`start-all-${lesson.id}`}>
+              <button className="mode-card mode-card--primary" onClick={() => startSession(lesson.id, "all")} disabled={isContentLoading} data-testid={`start-all-${lesson.id}`}>
                 <span className="mode-card__number">{cards.length}</span><span><strong>全{cards.length}問</strong><small>講義内容を一周する</small></span><span className="mode-card__arrow" aria-hidden="true">→</span>
               </button>
-              <button className="mode-card mode-card--review" onClick={() => startSession(lesson.id, "review")} disabled={lessonReviewIds.length === 0} data-testid={`start-review-${lesson.id}`}>
+              <button className="mode-card mode-card--review" onClick={() => startSession(lesson.id, "review")} disabled={isContentLoading || lessonReviewIds.length === 0} data-testid={`start-review-${lesson.id}`}>
                 <span className="mode-card__number">↺</span><span><strong>解き直しカード</strong><small>{lessonReviewIds.length ? `${lessonReviewIds.length}枚を解き直す` : "解き直しに追加すると使えます"}</small></span><span className="mode-card__arrow" aria-hidden="true">→</span>
               </button>
             </div>
@@ -1928,7 +1933,7 @@ export default function Home() {
         {isOpen && (
           <div className="mode-panel__content" id={contentId}>
             {savedFlashcardSession?.lessonId === lessonId && (
-              <button className="resume-session-button" onClick={resumeSession} data-testid={`resume-${lessonId}`}>
+              <button className="resume-session-button" onClick={resumeSession} disabled={isContentLoading} data-testid={`resume-${lessonId}`}>
                 ▶ 途中から再開 <small>Q{String(savedFlashcardSession.currentIndex + 1).padStart(2, "0")}から</small>
               </button>
             )}
@@ -1936,6 +1941,7 @@ export default function Home() {
               <button
                 className="mode-card mode-card--primary"
                 onClick={() => startSession(lessonId, "all")}
+                disabled={isContentLoading}
                 data-testid={`start-all-${lessonId}`}
               >
                 <span className="mode-card__number">{cardsByLesson[lessonId].length}</span>
@@ -1948,7 +1954,7 @@ export default function Home() {
               <button
                 className="mode-card mode-card--review"
                 onClick={() => startSession(lessonId, "review")}
-                disabled={lessonReviewIds.length === 0}
+                disabled={isContentLoading || lessonReviewIds.length === 0}
                 data-testid={`start-review-${lessonId}`}
               >
                 <span className="mode-card__number">↺</span>
