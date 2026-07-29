@@ -27,6 +27,7 @@ type Screen = "home" | "session" | "result" | "list" | "quiz" | "quiz-list" | "q
 type SessionMode = "all" | "review";
 type Rating = "known" | "again";
 type SessionEditField = "question" | "answer" | null;
+type ListEditDraft = Flashcard | null;
 type BaseLessonId = keyof typeof LESSONS;
 type LessonId = BaseLessonId | string;
 type Flashcard = { id: number; question: string; answer: string };
@@ -344,6 +345,7 @@ export default function Home() {
   const [sessionCards, setSessionCards] = useState<Flashcard[]>([]);
   const [sessionEditField, setSessionEditField] = useState<SessionEditField>(null);
   const [sessionEditText, setSessionEditText] = useState("");
+  const [listEditDraft, setListEditDraft] = useState<ListEditDraft>(null);
   const [cardIndex, setCardIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [knownCount, setKnownCount] = useState(0);
@@ -1225,6 +1227,61 @@ export default function Home() {
       }
       setAdminNotice("カードを保存しました。");
       cancelSessionEdit();
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "保存できませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const beginListEdit = (card: Flashcard) => {
+    setListEditDraft({ ...card });
+    setAdminError("");
+  };
+
+  const appendListImage = async (field: "question" | "answer", file: File) => {
+    if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
+      setAdminError("JPEG・PNG・WebP・GIF画像を選択してください。");
+      return;
+    }
+    if (!listEditDraft) return;
+    setAdminBusyCard(listEditDraft.id);
+    setAdminError("");
+    try {
+      const response = await fetch(adminApiPath("/api/images"), { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const payload = await response.json() as { error?: string; url?: string };
+      if (!response.ok || !payload.url) throw new Error(payload.error ?? "画像をアップロードできませんでした。");
+      setListEditDraft((current) => current ? { ...current, [field]: `${current[field]}${current[field] ? "\n" : ""}![画像](${payload.url})` } : current);
+      setAdminNotice("画像を挿入しました。保存すると公開されます。");
+    } catch (error) {
+      setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
+    } finally {
+      setAdminBusyCard(null);
+    }
+  };
+
+  const saveListEdit = async () => {
+    if (!listEditDraft || !listEditDraft.question.trim() || !listEditDraft.answer.trim()) return;
+    const card = { ...listEditDraft, question: listEditDraft.question.trim(), answer: listEditDraft.answer.trim() };
+    setAdminBusyCard(card.id);
+    setAdminError("");
+    try {
+      const isBaseLesson = isBaseLessonId(selectedLesson);
+      const response = await fetch(adminApiPath(isBaseLesson
+        ? `/api/admin/cards/${selectedLesson}/${card.id}`
+        : `/api/admin/lessons/${selectedLesson}/cards/${card.id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(isBaseLesson ? { "X-Admin-Password": adminPassword } : {}) },
+        body: JSON.stringify({ question: card.question, answer: card.answer }),
+      });
+      const payload = await response.json() as { error?: string; card?: Flashcard };
+      if (!response.ok || !payload.card) throw new Error(payload.error ?? "保存できませんでした。");
+      const savedCard = payload.card;
+      setCardsByLesson((current) => ({ ...current, [selectedLesson]: (current[selectedLesson] ?? []).map((item) => item.id === savedCard.id ? savedCard : item) }));
+      if (isBaseLesson) setAdminDrafts((current) => ({ ...current, [selectedLesson]: (current[selectedLesson] ?? []).map((item) => item.id === savedCard.id ? savedCard : item) }));
+      else setCustomLessonCards((current) => ({ ...current, [selectedLesson]: (current[selectedLesson] ?? []).map((item) => item.id === savedCard.id ? savedCard : item) }));
+      setListEditDraft(null);
+      setAdminNotice("問題を保存しました。");
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "保存できませんでした。");
     } finally {
@@ -2289,8 +2346,25 @@ export default function Home() {
                   <span className="chevron" aria-hidden="true">＋</span>
                 </summary>
                 <div className="list-answer">
-                  <span>ANSWER</span>
-                  <p><MahjongText text={card.answer} /></p>
+                  {listEditDraft?.id === card.id ? (
+                    <div className="list-card-editor">
+                      <label>問題文<textarea value={listEditDraft.question} onChange={(event) => setListEditDraft((current) => current ? { ...current, question: event.target.value } : current)} /></label>
+                      <label className="list-image-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file) void appendListImage("question", file); }}>
+                        問題に画像をドロップ
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void appendListImage("question", file); event.currentTarget.value = ""; }} />
+                      </label>
+                      <label>解説<textarea value={listEditDraft.answer} onChange={(event) => setListEditDraft((current) => current ? { ...current, answer: event.target.value } : current)} /></label>
+                      <label className="list-image-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file) void appendListImage("answer", file); }}>
+                        解説に画像をドロップ
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void appendListImage("answer", file); event.currentTarget.value = ""; }} />
+                      </label>
+                      <div className="list-edit-actions"><button type="button" onClick={() => setListEditDraft(null)} disabled={adminBusyCard !== null}>キャンセル</button><button type="button" onClick={saveListEdit} disabled={adminBusyCard !== null || !listEditDraft.question.trim() || !listEditDraft.answer.trim()}>{adminBusyCard === card.id ? "保存中…" : "保存"}</button></div>
+                    </div>
+                  ) : <>
+                    <span>ANSWER</span>
+                    <p><MahjongText text={card.answer} /></p>
+                    <button type="button" className="list-edit-button" onClick={() => beginListEdit(card)}>✎ 編集</button>
+                  </>}
                 </div>
               </details>
             ))}

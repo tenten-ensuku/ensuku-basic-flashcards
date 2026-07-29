@@ -2219,6 +2219,88 @@ summary:focus-visible {
   white-space: pre-wrap;
 }
 
+.list-edit-button {
+  margin-top: 10px;
+  border: 0;
+  background: transparent;
+  color: #248b73;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.list-card-editor {
+  display: grid;
+  gap: 9px;
+}
+
+.list-card-editor > label:not(.list-image-drop) {
+  display: grid;
+  gap: 4px;
+  color: #17624f;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.list-card-editor textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  border: 1px solid #9fcfc1;
+  border-radius: 10px;
+  padding: 9px;
+  background: #fff;
+  color: #16493c;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.list-image-drop {
+  display: grid;
+  min-height: 45px;
+  place-items: center;
+  border: 1px dashed #48b99a;
+  border-radius: 10px;
+  color: #248b73;
+  background: rgba(255, 255, 255, 0.68);
+  font-size: 0.76rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.list-image-drop input {
+  display: none;
+}
+
+.list-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.list-edit-actions button {
+  min-height: 36px;
+  border-radius: 10px;
+  padding: 0 13px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.list-edit-actions button:first-child {
+  border: 1px solid #9fcfc1;
+  background: #fff;
+  color: #17624f;
+}
+
+.list-edit-actions button:last-child {
+  border: 0;
+  background: #ff8967;
+  color: #522718;
+}
+
 .quiz-list-answer {
   border-top: 1px solid var(--line);
   padding: 14px;
