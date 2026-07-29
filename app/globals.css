@@ -1450,7 +1450,9 @@ summary:focus-visible {
 }
 
 .flashcard--revealed {
-  border-color: rgba(10, 155, 118, 0.42);
+  border-color: rgba(96, 113, 120, 0.36);
+  background: linear-gradient(145deg, #f1f3f4, #dfe3e6);
+  color: #1e2b2a;
 }
 
 .flashcard--flippable {
@@ -1713,6 +1715,15 @@ summary:focus-visible {
   padding: 12px;
   background: #e4f8ef;
   animation: answer-in 180ms ease-out;
+}
+
+.answer-block .card-copy {
+  color: #1d4038;
+  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  font-size: clamp(1.15rem, 4.8vw, 1.65rem);
+  font-weight: 700;
+  line-height: 1.65;
+  white-space: pre-wrap;
 }
 
 .answer-block p {

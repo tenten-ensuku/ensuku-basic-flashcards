@@ -1,5 +1,10 @@
-export const APP_VERSION = 56;
+export const APP_VERSION = 57;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 00:35",
+    title: "ver57 解説面を読みやすく改善",
+    body: "解説面をグレー基調にし、本文の文字を大きく読みやすくしました。牌姿を含む改行もそのまま表示されます。",
+  },
   {
     date: "2026/7/30 00:20",
     title: "ver56 お気に入りタブを黄色に変更",
