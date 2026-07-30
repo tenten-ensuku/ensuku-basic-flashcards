@@ -944,6 +944,16 @@ summary:focus-visible {
   font-weight: 800;
 }
 
+.settings-upload-button--drop {
+  border-style: dashed;
+}
+
+.settings-upload-button--drop-active {
+  border-color: var(--teal);
+  background: #e6faf2;
+  transform: translateY(-1px);
+}
+
 .tone-option--mint { background: #c8fae1; }
 .tone-option--sky { background: #caefff; }
 .tone-option--lavender { background: #eadcff; }

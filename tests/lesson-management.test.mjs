@@ -37,6 +37,8 @@ test("shortcut settings stay in the current device", () => {
   assert.match(pageSource, /apple-mobile-web-app-title/);
   assert.match(pageSource, /ショートカット名とアプリアイコンを保存しました/);
   assert.match(pageSource, /aria-live="polite"/);
+  assert.match(pageSource, /画像を選ぶ／ここにドロップ/);
+  assert.match(pageSource, /event\.dataTransfer\.files/);
   assert.doesNotMatch(pageSource, /adminApiPath\("\/api\/admin\/settings"\)/);
 });
 

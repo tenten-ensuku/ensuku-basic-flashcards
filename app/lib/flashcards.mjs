@@ -1,5 +1,10 @@
-export const APP_VERSION = 60;
+export const APP_VERSION = 61;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 01:50",
+    title: "ver61 ショートカットアイコンの画像ドロップに対応",
+    body: "設定の「画像を選ぶ／ここにドロップ」から、画像の選択とドラッグ＆ドロップで端末内のショートカットアイコンを設定できるようにしました。",
+  },
   {
     date: "2026/7/30 01:35",
     title: "ver60 ショートカット設定の保存完了を表示",

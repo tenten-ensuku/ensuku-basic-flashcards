@@ -425,6 +425,7 @@ export default function Home() {
   const [baseLessonMetadata, setBaseLessonMetadata] = useState<Partial<Record<BaseLessonId, AddedLesson>>>({});
   const [appIconUrl, setAppIconUrl] = useState(DEFAULT_APP_ICON_URL);
   const [appIconDraft, setAppIconDraft] = useState("");
+  const [shortcutIconDropActive, setShortcutIconDropActive] = useState(false);
   const [appTitle, setAppTitle] = useState(DEFAULT_APP_TITLE);
   const [appTitleDraft, setAppTitleDraft] = useState(DEFAULT_APP_TITLE);
   const [appTone, setAppTone] = useState<AppTone>("mint");
@@ -1214,7 +1215,7 @@ export default function Home() {
   };
 
   const saveAppIconUrl = (
-    nextIconUrl = appIconDraft,
+    nextIconUrl = appIconDraft || (appIconUrl === DEFAULT_APP_ICON_URL ? "" : appIconUrl),
     nextTitle = appTitleDraft,
   ) => {
     const iconUrl = nextIconUrl.trim();
@@ -1232,7 +1233,7 @@ export default function Home() {
     try {
       window.localStorage.setItem(SHORTCUT_SETTINGS_STORAGE_KEY, JSON.stringify({ iconUrl, title }));
       setAppIconUrl(iconUrl || DEFAULT_APP_ICON_URL);
-      setAppIconDraft(iconUrl);
+      setAppIconDraft(iconUrl.startsWith("data:image/") ? "" : iconUrl);
       setAppTitle(title);
       setAppTitleDraft(title);
       setAdminNotice("この端末のショートカット名とアプリアイコンを保存しました。iPhoneの既存ショートカットは削除して再追加してください。");
@@ -2078,10 +2079,19 @@ export default function Home() {
               </div>
               <div className="settings-group">
                 <h3>アプリアイコン</h3>
-                <p>この端末だけのアイコンです。ショートカットの絵柄は、変更後に再追加すると更新されます。</p>
+                <p>この端末だけのアイコンです。画像を選ぶか、この枠へドラッグ＆ドロップするとすぐ保存されます。選んだ画像のURLは作成されません。</p>
                 <input value={appIconDraft} onChange={(event) => setAppIconDraft(event.target.value)} placeholder="画像URLを貼り付け" aria-label="アプリアイコンURL" />
                 <div className="settings-actions">
-                  <label className="settings-upload-button" title="画像をアップロードしてアイコンに設定"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAppIcon(file); event.currentTarget.value = ""; }} />画像を選ぶ</label>
+                  <label
+                    className={`settings-upload-button settings-upload-button--drop${shortcutIconDropActive ? " settings-upload-button--drop-active" : ""}`}
+                    title="画像を選択、またはここへドロップしてアイコンに設定"
+                    onDragEnter={(event) => { event.preventDefault(); setShortcutIconDropActive(true); }}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDragLeave={() => setShortcutIconDropActive(false)}
+                    onDrop={(event) => { event.preventDefault(); setShortcutIconDropActive(false); const file = event.dataTransfer.files?.[0]; if (file) void uploadAppIcon(file); }}
+                  >
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAppIcon(file); event.currentTarget.value = ""; }} />画像を選ぶ／ここにドロップ
+                  </label>
                   <button type="button" className="settings-save-button" onClick={() => void saveAppIconUrl()} title="アイコンURLを保存">保存</button>
                   <button type="button" className="text-button" onClick={() => void saveAppIconUrl("")} title="標準アイコンへ戻す">標準に戻す</button>
                 </div>
