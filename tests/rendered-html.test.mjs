@@ -31,7 +31,7 @@ test("renders the production flashcard home screen", async () => {
   assert.match(html, /<html lang="ja">/i);
   assert.match(html, /<title>授業復習<\/title>/i);
   assert.match(html, /授業復習～瀬利さりな～/);
-  assert.match(html, /ver(?:<!-- -->)?64/);
+  assert.match(html, /ver(?:<!-- -->)?65/);
   assert.match(html, /7\/16　ねじまき鳥先生/);
   assert.match(html, /基本序列マスタークイズ/);
   assert.match(html, /https:\/\/youtu\.be\/NE1UHrZkg6g/);
@@ -48,7 +48,8 @@ test("renders the production flashcard home screen", async () => {
   assert.match(html, /お知らせを見る/);
   assert.match(html, /設定を開く/);
   assert.match(html, /data-testid="toggle-quiz-section"/);
-  assert.match(html, /7\/16　ねじまき鳥先生(?:<!-- -->)?　(?:<!-- -->)?基本序列マスタークイズ/);
+  assert.match(html, /7\/16　ねじまき鳥/);
+  assert.match(html, /lesson-summary__topic">基本序列マスタークイズ/);
   assert.match(html, /data-testid="toggle-lesson-tenten"/);
   assert.match(html, /data-testid="toggle-lesson-nejimaki"/);
   assert.doesNotMatch(html, /data-testid="start-all-tenten0718"/);

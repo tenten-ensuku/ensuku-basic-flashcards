@@ -1051,9 +1051,12 @@ export default function Home() {
       }
       setLessonEditDraft(null);
       setLessonEditResources([]);
-      setAdminNotice("授業情報を保存しました。");
+      setAdminNotice("保存完了！ 授業情報を保存しました。");
+      showToast("保存完了！ 授業情報を保存しました");
     } catch (error) {
-      setAdminError(error instanceof Error ? error.message : "授業情報を保存できませんでした。");
+      const message = error instanceof Error ? error.message : "授業情報を保存できませんでした。";
+      setAdminError(message);
+      showToast(message);
     } finally { setAdminBusyCard(null); }
   };
 
@@ -1208,8 +1211,11 @@ export default function Home() {
       if (!response.ok || !payload.url) throw new Error(payload.error ?? "画像をアップロードできませんでした。");
       setLessonEditResources((current) => [...current, { kind: "image", label: file.name, url: payload.url! }]);
       setAdminNotice("授業資料の画像を追加しました。授業情報を保存すると公開されます。");
+      showToast("画像資料を追加しました。最後に授業情報を保存してください");
     } catch (error) {
-      setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
+      const message = error instanceof Error ? error.message : "画像をアップロードできませんでした。";
+      setAdminError(message);
+      showToast(message);
     } finally {
       setAdminBusyCard(null);
     }
@@ -1888,6 +1894,46 @@ export default function Home() {
     return lesson ? `${lesson.date}　${lesson.teacher}　${lesson.title}` : "授業の復習";
   };
 
+  const compactTeacherName = (teacher: string) => teacher.replace(/先生$/u, "");
+
+  const beginLessonMetadataEdit = (lesson: AddedLesson) => {
+    setAdminError("");
+    setAdminNotice("");
+    setLessonEditDraft({ ...lesson });
+    setLessonEditResources(lessonResources
+      .filter((resource) => resource.lessonId === lesson.id)
+      .map(({ kind, label, url }) => ({ kind, label, url })));
+  };
+
+  const renderLessonResourceActions = (lessonId: string) => {
+    const resources = lessonResources.filter((resource) => resource.lessonId === lessonId);
+    if (resources.length === 0) return null;
+    return <div className="home-lesson-resources" aria-label="添付資料">
+      <strong>添付資料</strong>
+      {resources.map((resource) => resource.kind === "image" ? (
+        <button type="button" className="lesson-resource-icon lesson-resource-icon--image" onClick={() => setImagePreview({ url: resource.url, label: resource.label || "画像資料" })} aria-label={`${resource.label || "画像資料"}を画面内で開く`} title="画像資料を画面内で開く" key={resource.id}>▧</button>
+      ) : (
+        <a className={`lesson-resource-icon lesson-resource-icon--${resource.kind}`} href={resource.url} target="_blank" rel="noreferrer" aria-label={`${resource.label || "資料"}を開く`} title={resource.label || "資料を開く"} key={resource.id}>↗</a>
+      ))}
+    </div>;
+  };
+
+  const renderHomeLessonEditor = (lesson: AddedLesson) => {
+    if (lessonEditDraft?.id !== lesson.id) {
+      return <button type="button" className="text-button home-lesson-edit-button" onClick={() => beginLessonMetadataEdit(lesson)}>✎ 表題・添付資料を編集</button>;
+    }
+    return <section className="home-lesson-editor" aria-label="表題と添付資料の編集">
+      <label>授業タイトル<input value={lessonEditDraft.title} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, title: event.target.value })} /></label>
+      <label>YouTube URL<input type="url" value={lessonEditDraft.videoUrl} onChange={(event) => setLessonEditDraft({ ...lessonEditDraft, videoUrl: event.target.value })} /></label>
+      <label>資料URL（Enterで追加）<input type="url" placeholder="Googleドキュメント・画像などのURL" onKeyDown={(event) => { if (event.key !== "Enter") return; event.preventDefault(); const url = event.currentTarget.value.trim(); if (!url) return; setLessonEditResources((current) => [...current, { kind: /\.(png|jpe?g|webp|gif)(?:\?|$)/i.test(url) ? "image" : "link", label: "", url }]); event.currentTarget.value = ""; }} /></label>
+      <label className="image-upload image-upload--drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files?.[0]; if (file) void uploadLessonEditImage(file); }}>
+        資料画像を追加<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadLessonEditImage(file); event.currentTarget.value = ""; }} /><span>クリック・ドラッグ＆ドロップで追加</span>
+      </label>
+      {lessonEditResources.length > 0 && <div className="lesson-resource-drafts">{lessonEditResources.map((resource, index) => <span key={`${resource.url}-${index}`}>{resource.kind === "image" ? "▧ 画像" : "↗ 資料"}<button type="button" onClick={() => setLessonEditResources((current) => current.filter((_, itemIndex) => itemIndex !== index))} title="この資料を削除">×</button></span>)}</div>}
+      <div className="admin-card-actions"><button type="button" className="admin-save-button" onClick={saveLessonMetadata} disabled={adminBusyCard !== null || !lessonEditDraft.title.trim()}>{adminBusyCard !== null ? "保存中…" : "保存"}</button><button type="button" className="text-button" onClick={() => { setLessonEditDraft(null); setLessonEditResources([]); }}>キャンセル</button></div>
+    </section>;
+  };
+
   const renderAddedLessonPanel = (lesson: AddedLesson) => {
     const cards = cardsByLesson[lesson.id] ?? [];
     const lessonReviewIds = activeReviewCardIdsByLesson[lesson.id] ?? [];
@@ -1897,8 +1943,10 @@ export default function Home() {
     <section className={`mode-panel mode-panel--collapsible ${isOpen ? "mode-panel--open" : ""}`} aria-label={`${lesson.date}　${lesson.teacher}　${lesson.title}`} key={lesson.id}>
       <div className="lesson-summary">
         <button className="lesson-summary__toggle" type="button" onClick={() => setOpenHomeSection(isOpen ? null : lesson.id)} aria-expanded={isOpen} aria-controls={contentId} data-testid={`toggle-lesson-${lesson.id}`}>
-          <span className="lesson-summary__title">{lesson.date}　{lesson.teacher}　{lesson.title}</span>
-          <span className="review-count">解き直し <strong>{lessonReviewIds.length}</strong>枚</span>
+          <span className="lesson-summary__copy">
+            <span className="lesson-summary__meta"><span>{lesson.date}　{compactTeacherName(lesson.teacher)}</span><span className="review-count">解き直し <strong>{lessonReviewIds.length}</strong>枚</span></span>
+            <span className="lesson-summary__topic">{lesson.title}</span>
+          </span>
           <span className="lesson-summary__chevron" aria-hidden="true">{isOpen ? "⌃" : "⌄"}</span>
         </button>
         {lesson.videoUrl && (
@@ -1906,15 +1954,11 @@ export default function Home() {
             <span className="youtube-play-mark" aria-hidden="true" />
           </a>
         )}
-        {lessonResources.filter((resource) => resource.lessonId === lesson.id).map((resource) => resource.kind === "image" ? (
-          <button type="button" className="lesson-resource-icon lesson-resource-icon--image" onClick={() => setImagePreview({ url: resource.url, label: resource.label || "画像資料" })} aria-label={`${resource.label || "画像資料"}を画面内で開く`} title="画像資料を画面内で開く" key={resource.id}>▧</button>
-        ) : (
-          <a className={`lesson-resource-icon lesson-resource-icon--${resource.kind}`} href={resource.url} target="_blank" rel="noreferrer" aria-label={`${resource.label || "資料"}を開く`} title={resource.label || "資料を開く"} key={resource.id}>↗</a>
-        ))}
       </div>
 
       {isOpen && (
         <div className="mode-panel__content" id={contentId}>
+          {renderLessonResourceActions(lesson.id)}
           {cards.length > 0 ? <>
             {savedFlashcardSession?.lessonId === lesson.id && (
               <button className="resume-session-button" onClick={resumeSession} disabled={isContentLoading} data-testid={`resume-${lesson.id}`}>
@@ -1931,6 +1975,7 @@ export default function Home() {
             </div>
             <button className="text-button lesson-list-button" onClick={() => { setSelectedLesson(lesson.id); setScreen("list"); }}><span aria-hidden="true">☷</span> 問題一覧を見る</button>
           </> : <p className="empty-state">問題を追加するとここから始められます。</p>}
+          {renderHomeLessonEditor(lesson)}
         </div>
       )}
     </section>
@@ -1955,9 +2000,9 @@ export default function Home() {
             aria-controls={contentId}
             data-testid={`toggle-lesson-${lessonId}`}
           >
-            <span className="lesson-summary__title">{label}</span>
-            <span className="review-count">
-              解き直し <strong>{lessonReviewIds.length}</strong>枚
+            <span className="lesson-summary__copy">
+              <span className="lesson-summary__meta"><span>{metadata.date}　{compactTeacherName(metadata.teacher)}</span><span className="review-count">解き直し <strong>{lessonReviewIds.length}</strong>枚</span></span>
+              <span className="lesson-summary__topic">{metadata.title}</span>
             </span>
             <span className="lesson-summary__chevron" aria-hidden="true">{isOpen ? "⌃" : "⌄"}</span>
           </button>
@@ -1973,15 +2018,11 @@ export default function Home() {
               <span className="youtube-play-mark" aria-hidden="true" />
             </a>
           )}
-          {lessonResources.filter((resource) => resource.lessonId === lessonId).map((resource) => resource.kind === "image" ? (
-            <button type="button" className="lesson-resource-icon lesson-resource-icon--image" onClick={() => setImagePreview({ url: resource.url, label: resource.label || "画像資料" })} aria-label={`${resource.label || "画像資料"}を画面内で開く`} title="画像資料を画面内で開く" key={resource.id}>▧</button>
-          ) : (
-            <a className={`lesson-resource-icon lesson-resource-icon--${resource.kind}`} href={resource.url} target="_blank" rel="noreferrer" aria-label={`${resource.label || "資料"}を開く`} title={resource.label || "資料を開く"} key={resource.id}>↗</a>
-          ))}
         </div>
 
         {isOpen && (
           <div className="mode-panel__content" id={contentId}>
+            {renderLessonResourceActions(lessonId)}
             {savedFlashcardSession?.lessonId === lessonId && (
               <button className="resume-session-button" onClick={resumeSession} disabled={isContentLoading} data-testid={`resume-${lessonId}`}>
                 ▶ 途中から再開 <small>Q{String(savedFlashcardSession.currentIndex + 1).padStart(2, "0")}から</small>
@@ -2028,6 +2069,7 @@ export default function Home() {
             >
               <span aria-hidden="true">☰</span> 問題一覧を見る
             </button>
+            {renderHomeLessonEditor(metadata)}
           </div>
         )}
       </section>
@@ -2176,9 +2218,9 @@ export default function Home() {
                 aria-controls="quiz-launch-content"
                 data-testid="toggle-quiz-section"
               >
-                <span className="lesson-summary__title" id="quiz-launch-title">{QUIZ_LESSON.label}　{QUIZ_LESSON.title}</span>
-                <span className="review-count">
-                  解き直し <strong>{activeQuizReviewIds.length}</strong>問
+                <span className="lesson-summary__copy" id="quiz-launch-title">
+                  <span className="lesson-summary__meta"><span>{QUIZ_LESSON.label.replace(/先生$/u, "")}</span><span className="review-count">解き直し <strong>{activeQuizReviewIds.length}</strong>問</span></span>
+                  <span className="lesson-summary__topic">{QUIZ_LESSON.title}</span>
                 </span>
                 <span className="lesson-summary__chevron" aria-hidden="true">{openHomeSection === "quiz" ? "⌃" : "⌄"}</span>
               </button>

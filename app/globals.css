@@ -1010,7 +1010,7 @@ summary:focus-visible {
 
 .lesson-summary__toggle {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -1023,6 +1023,39 @@ summary:focus-visible {
   color: var(--ink);
   cursor: pointer;
   text-align: left;
+}
+
+.lesson-summary__copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.lesson-summary__meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #47746a;
+  font-size: clamp(0.72rem, 2.7vw, 0.84rem);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.lesson-summary__meta > span:first-child,
+.lesson-summary__topic {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lesson-summary__topic {
+  color: var(--ink);
+  font-size: clamp(0.96rem, 3.5vw, 1.2rem);
+  font-weight: 900;
+  line-height: 1.35;
 }
 
 .lesson-summary__toggle:hover,
@@ -1092,6 +1125,54 @@ summary:focus-visible {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid rgba(20, 86, 73, 0.1);
+}
+
+.home-lesson-resources {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.home-lesson-resources > strong {
+  color: #47746a;
+  font-size: 0.76rem;
+}
+
+.home-lesson-edit-button {
+  margin-top: 10px;
+}
+
+.home-lesson-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  border: 1px solid rgba(8, 113, 95, 0.18);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.home-lesson-editor > label:not(.image-upload) {
+  display: grid;
+  gap: 5px;
+  color: #08715f;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.home-lesson-editor input[type="text"],
+.home-lesson-editor input[type="url"],
+.home-lesson-editor > label:not(.image-upload) input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(8, 113, 95, 0.22);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
 }
 
 .lesson-list-button {

@@ -25,6 +25,11 @@ test("existing lessons can save and manage attached resource URLs", () => {
   assert.match(workerSource, /const resources = Array\.isArray\(body\?\.resources\) \? body\.resources : null/);
   assert.match(workerSource, /DELETE FROM lesson_resources WHERE lesson_id = \?/);
   assert.match(workerSource, /INSERT INTO lesson_resources/);
+  assert.match(pageSource, /表題・添付資料を編集/);
+  assert.match(pageSource, /const renderHomeLessonEditor/);
+  assert.match(pageSource, /const renderLessonResourceActions/);
+  assert.match(pageSource, /lesson-summary__meta/);
+  assert.match(pageSource, /lesson-summary__topic/);
 });
 
 test("shortcut settings stay in the current device", () => {

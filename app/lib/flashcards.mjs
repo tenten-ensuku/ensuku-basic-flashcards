@@ -1,5 +1,10 @@
-export const APP_VERSION = 64;
+export const APP_VERSION = 65;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 02:55",
+    title: "ver65 授業カードを2行表示し展開後編集に対応",
+    body: "授業カードを日付・先生名と授業タイトルの2行構成にし、展開後から表題・YouTube・添付資料を編集できるようにしました。",
+  },
   {
     date: "2026/7/30 02:35",
     title: "ver64 ショートカット設定の保存完了を明確化",
