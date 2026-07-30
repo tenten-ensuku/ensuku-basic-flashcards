@@ -1,5 +1,10 @@
-export const APP_VERSION = 62;
+export const APP_VERSION = 63;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 02:20",
+    title: "ver63 閉じるボタンをスクロール中も固定",
+    body: "設定・お知らせ・画像プレビューで、右上の閉じるボタンがスクロール中も常に操作できるようにしました。",
+  },
   {
     date: "2026/7/30 02:05",
     title: "ver62 大きすぎるアイコン画像の理由を表示",

@@ -55,6 +55,9 @@ test("image resources open in an in-app image preview", () => {
   assert.match(pageSource, /const \[imagePreview, setImagePreview\]/);
   assert.match(pageSource, /画像資料を画面内で開く/);
   assert.match(pageSource, /className="image-preview"/);
+  const cssSource = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(cssSource, /\.settings-sheet__header\s*\{\s*position: sticky/);
+  assert.match(cssSource, /\.image-preview__top\s*\{\s*position: sticky/);
 });
 
 test("the default launcher icon uses the lesson-review image", () => {
