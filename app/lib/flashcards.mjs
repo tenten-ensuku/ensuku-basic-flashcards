@@ -1,5 +1,10 @@
-export const APP_VERSION = 59;
+export const APP_VERSION = 60;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 01:35",
+    title: "ver60 ショートカット設定の保存完了を表示",
+    body: "ショートカットの表示名・アイコンを保存したとき、設定画面に保存完了のメッセージを表示するようにしました。",
+  },
   {
     date: "2026/7/30 01:20",
     title: "ver59 ショートカット設定を端末ごとに変更",

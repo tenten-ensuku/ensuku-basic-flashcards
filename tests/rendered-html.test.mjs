@@ -31,7 +31,7 @@ test("renders the production flashcard home screen", async () => {
   assert.match(html, /<html lang="ja">/i);
   assert.match(html, /<title>授業復習<\/title>/i);
   assert.match(html, /授業復習～瀬利さりな～/);
-  assert.match(html, /ver(?:<!-- -->)?59/);
+  assert.match(html, /ver(?:<!-- -->)?60/);
   assert.match(html, /7\/16　ねじまき鳥先生/);
   assert.match(html, /基本序列マスタークイズ/);
   assert.match(html, /https:\/\/youtu\.be\/NE1UHrZkg6g/);

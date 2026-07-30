@@ -1228,6 +1228,7 @@ export default function Home() {
       return;
     }
     setAdminError("");
+    setAdminNotice("");
     try {
       window.localStorage.setItem(SHORTCUT_SETTINGS_STORAGE_KEY, JSON.stringify({ iconUrl, title }));
       setAppIconUrl(iconUrl || DEFAULT_APP_ICON_URL);
@@ -1246,6 +1247,7 @@ export default function Home() {
       return;
     }
     setAdminError("");
+    setAdminNotice("");
     try {
       if (file.size > 1024 * 1024) throw new Error("端末内に保存するため、アイコン画像は1MB以下にしてください。");
       const imageUrl = await new Promise<string>((resolve, reject) => {
@@ -2049,6 +2051,11 @@ export default function Home() {
                 <div><p className="section-kicker">SETTINGS</p><h2 id="settings-title">設定</h2></div>
                 <button type="button" className="icon-button" onClick={() => setSettingsOpen(false)} title="設定を閉じる" aria-label="設定を閉じる">×</button>
               </div>
+              {(adminError || adminNotice) && (
+                <p className={`admin-message ${adminError ? "admin-message--error" : "admin-message--success"}`} role={adminError ? "alert" : "status"} aria-live="polite">
+                  {adminError || adminNotice}
+                </p>
+              )}
               <div className="settings-group">
                 <h3>画面のトーン</h3>
                 <p>この端末だけの表示設定です。</p>
