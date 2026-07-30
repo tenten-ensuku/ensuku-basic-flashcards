@@ -30,6 +30,9 @@ test("existing lessons can save and manage attached resource URLs", () => {
   assert.match(pageSource, /const renderLessonResourceActions/);
   assert.match(pageSource, /lesson-summary__meta/);
   assert.match(pageSource, /lesson-summary__topic/);
+  assert.match(pageSource, />🖼️<\/span>/);
+  assert.match(pageSource, />📄<\/span>/);
+  assert.doesNotMatch(pageSource, /className="lesson-summary__chevron"/);
 });
 
 test("shortcut settings stay in the current device", () => {

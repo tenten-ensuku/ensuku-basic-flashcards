@@ -1908,14 +1908,11 @@ export default function Home() {
   const renderLessonResourceActions = (lessonId: string) => {
     const resources = lessonResources.filter((resource) => resource.lessonId === lessonId);
     if (resources.length === 0) return null;
-    return <div className="home-lesson-resources" aria-label="添付資料">
-      <strong>添付資料</strong>
-      {resources.map((resource) => resource.kind === "image" ? (
-        <button type="button" className="lesson-resource-icon lesson-resource-icon--image" onClick={() => setImagePreview({ url: resource.url, label: resource.label || "画像資料" })} aria-label={`${resource.label || "画像資料"}を画面内で開く`} title="画像資料を画面内で開く" key={resource.id}>▧</button>
+    return resources.map((resource) => resource.kind === "image" ? (
+        <button type="button" className="lesson-resource-icon lesson-resource-icon--image" onClick={() => setImagePreview({ url: resource.url, label: resource.label || "画像資料" })} aria-label={`${resource.label || "画像資料"}を画面内で開く`} title="画像資料を画面内で開く" key={resource.id}><span aria-hidden="true">🖼️</span></button>
       ) : (
-        <a className={`lesson-resource-icon lesson-resource-icon--${resource.kind}`} href={resource.url} target="_blank" rel="noreferrer" aria-label={`${resource.label || "資料"}を開く`} title={resource.label || "資料を開く"} key={resource.id}>↗</a>
-      ))}
-    </div>;
+        <a className="lesson-resource-icon lesson-resource-icon--document" href={resource.url} target="_blank" rel="noreferrer" aria-label={`${resource.label || "資料URL"}を開く`} title={resource.label || "資料URLを開く"} key={resource.id}><span aria-hidden="true">📄</span></a>
+      ));
   };
 
   const renderHomeLessonEditor = (lesson: AddedLesson) => {
@@ -1944,11 +1941,11 @@ export default function Home() {
       <div className="lesson-summary">
         <button className="lesson-summary__toggle" type="button" onClick={() => setOpenHomeSection(isOpen ? null : lesson.id)} aria-expanded={isOpen} aria-controls={contentId} data-testid={`toggle-lesson-${lesson.id}`}>
           <span className="lesson-summary__copy">
-            <span className="lesson-summary__meta"><span>{lesson.date}　{compactTeacherName(lesson.teacher)}</span><span className="review-count">解き直し <strong>{lessonReviewIds.length}</strong>枚</span></span>
+            <span className="lesson-summary__meta"><span>{lesson.date}　{compactTeacherName(lesson.teacher)}</span></span>
             <span className="lesson-summary__topic">{lesson.title}</span>
           </span>
-          <span className="lesson-summary__chevron" aria-hidden="true">{isOpen ? "⌃" : "⌄"}</span>
         </button>
+        {renderLessonResourceActions(lesson.id)}
         {lesson.videoUrl && (
           <a className="youtube-icon-button" href={lesson.videoUrl} target="_blank" rel="noreferrer" aria-label={`${lesson.title}の授業動画をYouTubeで見る`}>
             <span className="youtube-play-mark" aria-hidden="true" />
@@ -1958,7 +1955,6 @@ export default function Home() {
 
       {isOpen && (
         <div className="mode-panel__content" id={contentId}>
-          {renderLessonResourceActions(lesson.id)}
           {cards.length > 0 ? <>
             {savedFlashcardSession?.lessonId === lesson.id && (
               <button className="resume-session-button" onClick={resumeSession} disabled={isContentLoading} data-testid={`resume-${lesson.id}`}>
@@ -2001,11 +1997,11 @@ export default function Home() {
             data-testid={`toggle-lesson-${lessonId}`}
           >
             <span className="lesson-summary__copy">
-              <span className="lesson-summary__meta"><span>{metadata.date}　{compactTeacherName(metadata.teacher)}</span><span className="review-count">解き直し <strong>{lessonReviewIds.length}</strong>枚</span></span>
+              <span className="lesson-summary__meta"><span>{metadata.date}　{compactTeacherName(metadata.teacher)}</span></span>
               <span className="lesson-summary__topic">{metadata.title}</span>
             </span>
-            <span className="lesson-summary__chevron" aria-hidden="true">{isOpen ? "⌃" : "⌄"}</span>
           </button>
+          {renderLessonResourceActions(lessonId)}
           {metadata.videoUrl && (
             <a
               className="youtube-icon-button"
@@ -2022,7 +2018,6 @@ export default function Home() {
 
         {isOpen && (
           <div className="mode-panel__content" id={contentId}>
-            {renderLessonResourceActions(lessonId)}
             {savedFlashcardSession?.lessonId === lessonId && (
               <button className="resume-session-button" onClick={resumeSession} disabled={isContentLoading} data-testid={`resume-${lessonId}`}>
                 ▶ 途中から再開 <small>Q{String(savedFlashcardSession.currentIndex + 1).padStart(2, "0")}から</small>
@@ -2175,7 +2170,6 @@ export default function Home() {
               >
                 <span className="lesson-summary__title" id="favorite-launch-title">★ お気に入り</span>
                 <span className="review-count"><strong>{favoriteCards.length}</strong>枚</span>
-                <span className="lesson-summary__chevron" aria-hidden="true">{openHomeSection === FAVORITES_SESSION_ID ? "⌃" : "⌄"}</span>
               </button>
             </div>
             {openHomeSection === FAVORITES_SESSION_ID && (
@@ -2219,10 +2213,9 @@ export default function Home() {
                 data-testid="toggle-quiz-section"
               >
                 <span className="lesson-summary__copy" id="quiz-launch-title">
-                  <span className="lesson-summary__meta"><span>{QUIZ_LESSON.label.replace(/先生$/u, "")}</span><span className="review-count">解き直し <strong>{activeQuizReviewIds.length}</strong>問</span></span>
+                  <span className="lesson-summary__meta"><span>{QUIZ_LESSON.label.replace(/先生$/u, "")}</span></span>
                   <span className="lesson-summary__topic">{QUIZ_LESSON.title}</span>
                 </span>
-                <span className="lesson-summary__chevron" aria-hidden="true">{openHomeSection === "quiz" ? "⌃" : "⌄"}</span>
               </button>
               <a
                 className="youtube-icon-button"

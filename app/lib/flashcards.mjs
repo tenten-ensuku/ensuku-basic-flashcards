@@ -1,5 +1,10 @@
-export const APP_VERSION = 65;
+export const APP_VERSION = 66;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 03:10",
+    title: "ver66 授業カードの操作表示を整理",
+    body: "授業カードの解き直し枚数と展開記号を外し、添付画像は🖼️、資料URLは📄のボタンで表示するようにしました。",
+  },
   {
     date: "2026/7/30 02:55",
     title: "ver65 授業カードを2行表示し展開後編集に対応",

@@ -1010,7 +1010,7 @@ summary:focus-visible {
 
 .lesson-summary__toggle {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -1035,7 +1035,7 @@ summary:focus-visible {
   display: flex;
   min-width: 0;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   color: #47746a;
   font-size: clamp(0.72rem, 2.7vw, 0.84rem);
@@ -1074,24 +1074,23 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
-.lesson-summary__chevron {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 1px solid rgba(8, 113, 95, 0.16);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.62);
-  color: #08715f;
-  font-size: 1.05rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
 .lesson-summary .youtube-icon-button {
   flex-basis: 44px;
   width: 44px;
   height: 40px;
+}
+
+.lesson-summary .lesson-resource-icon {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.lesson-summary .lesson-resource-icon--document {
+  border-color: rgba(41, 113, 160, 0.24);
+  background: linear-gradient(145deg, #f6fbff, #d9edf8);
 }
 
 .lesson-summary .review-count {
@@ -1099,6 +1098,7 @@ summary:focus-visible {
 }
 
 .favorite-launch-panel .lesson-summary__toggle {
+  grid-template-columns: minmax(0, 1fr) auto;
   border: 1px solid rgba(178, 133, 39, 0.42);
   background: linear-gradient(145deg, #fffdf2, #f7e6ab);
   box-shadow: 0 4px 12px rgba(148, 100, 17, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.72);
@@ -1115,29 +1115,10 @@ summary:focus-visible {
   color: #775311;
 }
 
-.favorite-launch-panel .lesson-summary__chevron {
-  border-color: rgba(178, 133, 39, 0.42);
-  background: rgba(255, 253, 242, 0.76);
-  color: #b87b14;
-}
-
 .mode-panel__content {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid rgba(20, 86, 73, 0.1);
-}
-
-.home-lesson-resources {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin-bottom: 10px;
-}
-
-.home-lesson-resources > strong {
-  color: #47746a;
-  font-size: 0.76rem;
 }
 
 .home-lesson-edit-button {
