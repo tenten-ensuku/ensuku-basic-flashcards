@@ -108,6 +108,7 @@ const SUITS: Record<Suit, { prefix: string; label: string }> = {
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const ADMIN_API_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? "";
 const DEFAULT_APP_ICON_URL = `${BASE_PATH}/icons/serina.png`;
+const DEFAULT_APP_TITLE = "授業復習～瀬利さりな～";
 const FAVORITES_SESSION_ID = "__favorites__";
 const APPEARANCE_STORAGE_KEY = "ensuku-basic-flashcards-appearance-v1";
 const IMAGE_MARKDOWN_PATTERN = /!\[[^\]]*\]\([^)]+\)/;
@@ -355,11 +356,13 @@ function createSavedQuizSession(
 function HomeHeader({
   compact = false,
   iconUrl = DEFAULT_APP_ICON_URL,
+  title = DEFAULT_APP_TITLE,
   onOpenSettings,
   onOpenAnnouncements,
 }: {
   compact?: boolean;
   iconUrl?: string;
+  title?: string;
   onOpenSettings?: () => void;
   onOpenAnnouncements?: () => void;
 }) {
@@ -371,7 +374,7 @@ function HomeHeader({
       </div>
       <div>
         <p className="brand__eyebrow">ENSUKU BASIC LECTURE</p>
-        <h1 id={compact ? undefined : "app-title"}>授業復習～瀬利さりな～</h1>
+        <h1 id={compact ? undefined : "app-title"}>{title}</h1>
       </div>
       {compact ? <span className="version">ver{APP_VERSION}</span> : (
         <div className="brand__actions">
@@ -420,6 +423,8 @@ export default function Home() {
   const [baseLessonMetadata, setBaseLessonMetadata] = useState<Partial<Record<BaseLessonId, AddedLesson>>>({});
   const [appIconUrl, setAppIconUrl] = useState(DEFAULT_APP_ICON_URL);
   const [appIconDraft, setAppIconDraft] = useState("");
+  const [appTitle, setAppTitle] = useState(DEFAULT_APP_TITLE);
+  const [appTitleDraft, setAppTitleDraft] = useState(DEFAULT_APP_TITLE);
   const [appTone, setAppTone] = useState<AppTone>("mint");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
@@ -482,6 +487,22 @@ export default function Home() {
     try { window.localStorage.setItem(APPEARANCE_STORAGE_KEY, tone); } catch { /* その場だけ反映する。 */ }
   };
 
+  useEffect(() => {
+    document.title = appTitle;
+    const shortcutIconRels = ["icon", "shortcut icon", "apple-touch-icon"];
+    shortcutIconRels.forEach((rel) => {
+      const link = document.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`);
+      if (link) link.href = appIconUrl;
+    });
+    let shortcutTitle = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+    if (!shortcutTitle) {
+      shortcutTitle = document.createElement("meta");
+      shortcutTitle.name = "apple-mobile-web-app-title";
+      document.head.append(shortcutTitle);
+    }
+    shortcutTitle.content = appTitle;
+  }, [appIconUrl, appTitle]);
+
   const showToast = (message: string) => {
     setToastMessage(message);
     window.setTimeout(() => setToastMessage((current) => current === message ? "" : current), 2200);
@@ -492,7 +513,7 @@ export default function Home() {
     fetch(adminApiPath("/api/cards"), { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("問題データを取得できませんでした。");
-        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; deletedLessons?: AddedLesson[]; resources?: LessonResource[]; customCards?: Array<Flashcard & { lessonId: string }>; cardOrders?: Array<{ lessonId: string; id: number; sortOrder: number }>; settings?: { iconUrl?: string } }>;
+        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; deletedLessons?: AddedLesson[]; resources?: LessonResource[]; customCards?: Array<Flashcard & { lessonId: string }>; cardOrders?: Array<{ lessonId: string; id: number; sortOrder: number }>; settings?: { iconUrl?: string; title?: string } }>;
       })
       .then(({ overrides = [], quizOverrides = [], lessons = [], deletedLessons = [], resources = [], customCards = [], cardOrders = [], settings = {} }) => {
         const nextCards = withOverrides(overrides);
@@ -526,6 +547,8 @@ export default function Home() {
         setLessonResources(resources);
         setAppIconUrl(settings.iconUrl || DEFAULT_APP_ICON_URL);
         setAppIconDraft(settings.iconUrl ?? "");
+        setAppTitle(settings.title || DEFAULT_APP_TITLE);
+        setAppTitleDraft(settings.title || DEFAULT_APP_TITLE);
         setCustomLessonCards(nextCustomCards);
         setIsContentLoading(false);
       })
@@ -1174,10 +1197,18 @@ export default function Home() {
     }
   };
 
-  const saveAppIconUrl = async (nextIconUrl = appIconDraft) => {
+  const saveAppIconUrl = async (
+    nextIconUrl = appIconDraft,
+    nextTitle = appTitleDraft,
+  ) => {
     const iconUrl = nextIconUrl.trim();
+    const title = nextTitle.trim();
     if (iconUrl && !/^https?:\/\//i.test(iconUrl)) {
       setAdminError("アイコンURLは https:// または http:// で入力してください。");
+      return;
+    }
+    if (!title || title.length > 40) {
+      setAdminError("ショートカット名は1〜40文字で入力してください。");
       return;
     }
     setAdminBusyCard(0);
@@ -1186,15 +1217,17 @@ export default function Home() {
       const response = await fetch(adminApiPath("/api/admin/settings"), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ iconUrl }),
+        body: JSON.stringify({ iconUrl, title }),
       });
-      const payload = await response.json() as { error?: string; settings?: { iconUrl?: string } };
-      if (!response.ok || !payload.settings) throw new Error(payload.error ?? "アイコンを保存できませんでした。");
+      const payload = await response.json() as { error?: string; settings?: { iconUrl?: string; title?: string } };
+      if (!response.ok || !payload.settings) throw new Error(payload.error ?? "アプリ設定を保存できませんでした。");
       setAppIconUrl(payload.settings.iconUrl || DEFAULT_APP_ICON_URL);
       setAppIconDraft(payload.settings.iconUrl ?? "");
-      setAdminNotice(iconUrl ? "アプリアイコンを保存しました。" : "標準アイコンに戻しました。");
+      setAppTitle(payload.settings.title || DEFAULT_APP_TITLE);
+      setAppTitleDraft(payload.settings.title || DEFAULT_APP_TITLE);
+      setAdminNotice("ショートカット名とアプリアイコンを保存しました。iPhoneの既存ショートカットは削除して再追加してください。");
     } catch (error) {
-      setAdminError(error instanceof Error ? error.message : "アイコンを保存できませんでした。");
+      setAdminError(error instanceof Error ? error.message : "アプリ設定を保存できませんでした。");
     } finally {
       setAdminBusyCard(null);
     }
@@ -1999,7 +2032,7 @@ export default function Home() {
 
       {screen === "home" && (
         <section className={`screen screen--home${isContentLoading ? " screen--home-loading" : ""}`} aria-labelledby="app-title">
-          <HomeHeader iconUrl={appIconUrl} onOpenSettings={() => setSettingsOpen(true)} onOpenAnnouncements={() => setAnnouncementsOpen(true)} />
+          <HomeHeader iconUrl={appIconUrl} title={appTitle} onOpenSettings={() => setSettingsOpen(true)} onOpenAnnouncements={() => setAnnouncementsOpen(true)} />
 
           {settingsOpen && (
             <section className="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -2016,6 +2049,15 @@ export default function Home() {
                       {{ mint: "ミント", sky: "スカイ", lavender: "ラベンダー", sunset: "サンセット" }[tone]}
                     </button>
                   ))}
+                </div>
+              </div>
+              <div className="settings-group">
+                <h3>ショートカット表示名</h3>
+                <p>iPhoneのBraveでホーム画面へ追加するときに使う名前です。保存後は、すでにあるショートカットを削除して追加し直してください。</p>
+                <input value={appTitleDraft} onChange={(event) => setAppTitleDraft(event.target.value)} maxLength={40} placeholder={DEFAULT_APP_TITLE} aria-label="ショートカット表示名" />
+                <div className="settings-actions">
+                  <button type="button" className="settings-save-button" onClick={() => void saveAppIconUrl()} disabled={adminBusyCard !== null}>{adminBusyCard !== null ? "保存中…" : "名前を保存"}</button>
+                  <button type="button" className="text-button" onClick={() => void saveAppIconUrl(appIconDraft, DEFAULT_APP_TITLE)} disabled={adminBusyCard !== null}>標準名に戻す</button>
                 </div>
               </div>
               <div className="settings-group">
@@ -2286,7 +2328,7 @@ export default function Home() {
 
       {screen === "quiz-result" && (
         <section className="screen screen--result" aria-labelledby="quiz-result-title">
-          <HomeHeader compact iconUrl={appIconUrl} />
+          <HomeHeader compact iconUrl={appIconUrl} title={appTitle} />
           <div className="result-panel quiz-result-panel">
             <p className="section-kicker">QUIZ COMPLETE</p>
             <h2 id="quiz-result-title">4択クイズ完了！</h2>
@@ -2925,7 +2967,7 @@ export default function Home() {
 
       {screen === "result" && lastSession && (
         <section className="screen screen--result" aria-labelledby="result-title">
-          <HomeHeader compact iconUrl={appIconUrl} />
+          <HomeHeader compact iconUrl={appIconUrl} title={appTitle} />
           <div className="result-panel">
             <p className="section-kicker">SESSION COMPLETE</p>
             <h2 id="result-title">おつかれさまでした</h2>

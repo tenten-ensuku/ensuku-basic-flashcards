@@ -32,8 +32,11 @@ test("the app icon can be uploaded, set by URL, and shared through the API", () 
   assert.match(pageSource, /const saveAppIconUrl = async/);
   assert.match(pageSource, /const uploadAppIcon = async/);
   assert.match(pageSource, /アプリアイコン/);
+  assert.match(pageSource, /ショートカット表示名/);
+  assert.match(pageSource, /apple-mobile-web-app-title/);
   assert.match(workerSource, /url\.pathname === "\/api\/admin\/settings" && request\.method === "PUT"/);
   assert.match(workerSource, /app_icon_url/);
+  assert.match(workerSource, /app_title/);
   assert.match(workerSource, /APP_SETTINGS_SCHEMA_SQL/);
 });
 

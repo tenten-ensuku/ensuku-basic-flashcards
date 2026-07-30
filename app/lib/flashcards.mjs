@@ -1,5 +1,10 @@
-export const APP_VERSION = 57;
+export const APP_VERSION = 58;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 01:00",
+    title: "ver58 ショートカット名を設定可能に",
+    body: "設定から、iPhoneやBraveでホーム画面へ追加する際の表示名とアイコンを保存できるようにしました。既存のショートカットは一度削除してから追加し直すと反映されます。",
+  },
   {
     date: "2026/7/30 00:35",
     title: "ver57 解説面を読みやすく改善",
