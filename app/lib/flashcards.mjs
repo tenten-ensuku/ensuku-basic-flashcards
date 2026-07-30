@@ -1,5 +1,10 @@
-export const APP_VERSION = 61;
+export const APP_VERSION = 62;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 02:05",
+    title: "ver62 大きすぎるアイコン画像の理由を表示",
+    body: "1MBを超えるアイコン画像を選んだ場合、画像サイズが大きすぎることと選択した画像のサイズを赤字で表示するようにしました。",
+  },
   {
     date: "2026/7/30 01:50",
     title: "ver61 ショートカットアイコンの画像ドロップに対応",

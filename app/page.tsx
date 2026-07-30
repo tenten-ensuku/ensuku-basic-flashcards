@@ -113,6 +113,7 @@ const APP_HEADER_TITLE = "授業復習～瀬利さりな～";
 const FAVORITES_SESSION_ID = "__favorites__";
 const APPEARANCE_STORAGE_KEY = "ensuku-basic-flashcards-appearance-v1";
 const SHORTCUT_SETTINGS_STORAGE_KEY = "ensuku-basic-flashcards-shortcut-settings-v1";
+const MAX_SHORTCUT_ICON_SIZE_BYTES = 1024 * 1024;
 const IMAGE_MARKDOWN_PATTERN = /!\[[^\]]*\]\([^)]+\)/;
 const BASE_LESSON_METADATA: Record<BaseLessonId, AddedLesson> = {
   tenten0718: { id: "tenten0718", date: "7/18", teacher: "てんてん先生", title: "6枚形+完全形何切る？", videoUrl: LESSONS.tenten0718.videoUrl },
@@ -1247,10 +1248,14 @@ export default function Home() {
       setAdminError("JPEG・PNG・WebP・GIF画像を選択してください。");
       return;
     }
+    if (file.size > MAX_SHORTCUT_ICON_SIZE_BYTES) {
+      setAdminNotice("");
+      setAdminError(`画像サイズが大きすぎます（${(file.size / 1024 / 1024).toFixed(1)}MB）。端末内に保存するため、1MB以下の画像を選んでください。`);
+      return;
+    }
     setAdminError("");
     setAdminNotice("");
     try {
-      if (file.size > 1024 * 1024) throw new Error("端末内に保存するため、アイコン画像は1MB以下にしてください。");
       const imageUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("画像を読み込めませんでした。"));
@@ -2079,7 +2084,7 @@ export default function Home() {
               </div>
               <div className="settings-group">
                 <h3>アプリアイコン</h3>
-                <p>この端末だけのアイコンです。画像を選ぶか、この枠へドラッグ＆ドロップするとすぐ保存されます。選んだ画像のURLは作成されません。</p>
+                <p>この端末だけのアイコンです。1MB以下の画像を選ぶか、この枠へドラッグ＆ドロップするとすぐ保存されます。大きすぎる画像は赤字でお知らせします。選んだ画像のURLは作成されません。</p>
                 <input value={appIconDraft} onChange={(event) => setAppIconDraft(event.target.value)} placeholder="画像URLを貼り付け" aria-label="アプリアイコンURL" />
                 <div className="settings-actions">
                   <label

@@ -39,6 +39,8 @@ test("shortcut settings stay in the current device", () => {
   assert.match(pageSource, /aria-live="polite"/);
   assert.match(pageSource, /画像を選ぶ／ここにドロップ/);
   assert.match(pageSource, /event\.dataTransfer\.files/);
+  assert.match(pageSource, /画像サイズが大きすぎます/);
+  assert.match(pageSource, /MAX_SHORTCUT_ICON_SIZE_BYTES/);
   assert.doesNotMatch(pageSource, /adminApiPath\("\/api\/admin\/settings"\)/);
 });
 
