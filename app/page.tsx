@@ -1237,7 +1237,7 @@ export default function Home() {
       setAppIconDraft(iconUrl.startsWith("data:image/") ? "" : iconUrl);
       setAppTitle(title);
       setAppTitleDraft(title);
-      setAdminNotice("この端末のショートカット名とアプリアイコンを保存しました。iPhoneの既存ショートカットは削除して再追加してください。");
+      setAdminNotice("保存完了！ この端末のショートカット名とアプリアイコンを保存しました。iPhoneの既存ショートカットは削除して再追加してください。");
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "この端末にアプリ設定を保存できませんでした。");
     }

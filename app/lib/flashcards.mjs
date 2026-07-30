@@ -1,5 +1,10 @@
-export const APP_VERSION = 63;
+export const APP_VERSION = 64;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 02:35",
+    title: "ver64 ショートカット設定の保存完了を明確化",
+    body: "ショートカット設定の保存時に、「保存完了！」と分かりやすく表示するようにしました。",
+  },
   {
     date: "2026/7/30 02:20",
     title: "ver63 閉じるボタンをスクロール中も固定",
