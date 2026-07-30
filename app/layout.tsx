@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const title = "授業復習～瀬利さりな～";
+const title = "授業復習";
 const description =
   "麻雀の基礎講義を、4択30問の基本序列クイズと3授業・全130問のフラッシュカードで復習できる無料ドリル。";
 
@@ -16,9 +16,9 @@ export const metadata: Metadata = {
   description,
   manifest: `${basePath}/manifest.webmanifest`,
   icons: {
-    icon: `${basePath}/icons/ensuku-192.png?v=43`,
-    shortcut: `${basePath}/icons/ensuku-192.png?v=43`,
-    apple: `${basePath}/icons/ensuku-180.png?v=43`,
+    icon: `${basePath}/icons/lesson-review-default.png?v=59`,
+    shortcut: `${basePath}/icons/lesson-review-default.png?v=59`,
+    apple: `${basePath}/icons/lesson-review-default.png?v=59`,
   },
   openGraph: {
     title,

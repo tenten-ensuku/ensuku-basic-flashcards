@@ -27,17 +27,15 @@ test("existing lessons can save and manage attached resource URLs", () => {
   assert.match(workerSource, /INSERT INTO lesson_resources/);
 });
 
-test("the app icon can be uploaded, set by URL, and shared through the API", () => {
+test("shortcut settings stay in the current device", () => {
   assert.match(pageSource, /const \[appIconUrl, setAppIconUrl\]/);
-  assert.match(pageSource, /const saveAppIconUrl = async/);
+  assert.match(pageSource, /SHORTCUT_SETTINGS_STORAGE_KEY/);
+  assert.match(pageSource, /const saveAppIconUrl = \(/);
   assert.match(pageSource, /const uploadAppIcon = async/);
   assert.match(pageSource, /アプリアイコン/);
   assert.match(pageSource, /ショートカット表示名/);
   assert.match(pageSource, /apple-mobile-web-app-title/);
-  assert.match(workerSource, /url\.pathname === "\/api\/admin\/settings" && request\.method === "PUT"/);
-  assert.match(workerSource, /app_icon_url/);
-  assert.match(workerSource, /app_title/);
-  assert.match(workerSource, /APP_SETTINGS_SCHEMA_SQL/);
+  assert.doesNotMatch(pageSource, /adminApiPath\("\/api\/admin\/settings"\)/);
 });
 
 test("base lessons expose the same lesson metadata editor as added lessons", () => {
@@ -53,9 +51,9 @@ test("image resources open in an in-app image preview", () => {
   assert.match(pageSource, /className="image-preview"/);
 });
 
-test("launcher icons stay separate from the configurable lesson icon", () => {
+test("the default launcher icon uses the lesson-review image", () => {
   const layoutSource = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-  assert.match(layoutSource, /icons\/ensuku-192\.png\?v=43/);
+  assert.match(layoutSource, /icons\/lesson-review-default\.png\?v=59/);
   assert.doesNotMatch(layoutSource, /icons\/serina\.png/);
 });
 

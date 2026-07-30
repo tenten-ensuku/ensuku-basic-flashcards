@@ -133,12 +133,8 @@ export async function handleAdminApi(request, env) {
     let body;
     try { body = await request.json(); } catch { body = {}; }
     const iconUrl = typeof body?.iconUrl === "string" ? body.iconUrl.trim() : "";
-    const title = typeof body?.title === "string" ? body.title.trim() : "";
     if (iconUrl && (!/^https?:\/\//i.test(iconUrl) || iconUrl.length > 2000)) {
       return json(request, { error: "アイコンURLは https:// または http:// の画像URLを入力してください。" }, 400);
-    }
-    if (!title || title.length > 40) {
-      return json(request, { error: "ショートカット名は1〜40文字で入力してください。" }, 400);
     }
     if (iconUrl) {
       await env.DB.prepare(`
@@ -149,12 +145,7 @@ export async function handleAdminApi(request, env) {
     } else {
       await env.DB.prepare("DELETE FROM app_settings WHERE setting_key = 'app_icon_url'").run();
     }
-    await env.DB.prepare(`
-      INSERT INTO app_settings (setting_key, setting_value, updated_at)
-      VALUES ('app_title', ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP
-    `).bind(title).run();
-    return json(request, { ok: true, settings: { iconUrl, title } });
+    return json(request, { ok: true, settings: { iconUrl } });
   }
 
   if (url.pathname === "/api/cards" && request.method === "GET") {
@@ -180,7 +171,7 @@ export async function handleAdminApi(request, env) {
       "SELECT lesson_id, card_id, sort_order FROM flashcard_order ORDER BY lesson_id, sort_order, card_id",
     ).all();
     const settingsResult = await env.DB.prepare(
-      "SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN ('app_icon_url', 'app_title')",
+      "SELECT setting_key, setting_value FROM app_settings WHERE setting_key = 'app_icon_url'",
     ).all();
     const overrides = [...(cardResult.results ?? []).map((row) => ({
       lessonId: row.lesson_id,
@@ -244,8 +235,7 @@ export async function handleAdminApi(request, env) {
     }));
     const cardOrders = (orderResult.results ?? []).map((row) => ({ lessonId: row.lesson_id, id: row.card_id, sortOrder: row.sort_order }));
     const iconUrl = (settingsResult.results ?? []).find((row) => row.setting_key === "app_icon_url")?.setting_value ?? "";
-    const title = (settingsResult.results ?? []).find((row) => row.setting_key === "app_title")?.setting_value ?? "";
-    return json(request, { overrides, quizOverrides, lessons, deletedLessons, resources, customCards, cardOrders, settings: { iconUrl, title } });
+    return json(request, { overrides, quizOverrides, lessons, deletedLessons, resources, customCards, cardOrders, settings: { iconUrl } });
   }
 
   if (url.pathname === "/api/admin/lessons" && request.method === "POST") {

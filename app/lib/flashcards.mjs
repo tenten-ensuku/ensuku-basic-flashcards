@@ -1,5 +1,10 @@
-export const APP_VERSION = 58;
+export const APP_VERSION = 59;
 export const APP_ANNOUNCEMENTS = Object.freeze([
+  {
+    date: "2026/7/30 01:20",
+    title: "ver59 ショートカット設定を端末ごとに変更",
+    body: "ショートカットの表示名とアイコンは、この端末だけに保存されるようにしました。未設定時は「授業復習」と授業復習ノートのアイコンが使われます。",
+  },
   {
     date: "2026/7/30 01:00",
     title: "ver58 ショートカット名を設定可能に",

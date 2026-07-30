@@ -1,6 +1,6 @@
 {
-  "name": "一向聴 基礎講義フラッシュカード",
-  "short_name": "一向聴カード",
+  "name": "授業復習",
+  "short_name": "授業復習",
   "description": "4択30問の基本序列クイズと3授業・全130問のフラッシュカードで復習できるドリル",
   "start_url": "./",
   "display": "standalone",
@@ -9,14 +9,14 @@
   "lang": "ja",
   "icons": [
     {
-      "src": "icons/ensuku-192.png?v=43",
-      "sizes": "192x192",
+      "src": "icons/lesson-review-default.png?v=59",
+      "sizes": "700x700",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/ensuku-512.png?v=43",
-      "sizes": "512x512",
+      "src": "icons/lesson-review-default.png?v=59",
+      "sizes": "700x700",
       "type": "image/png",
       "purpose": "any"
     }

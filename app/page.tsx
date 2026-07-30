@@ -107,10 +107,12 @@ const SUITS: Record<Suit, { prefix: string; label: string }> = {
 
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const ADMIN_API_BASE_URL = process.env.NEXT_PUBLIC_ADMIN_API_URL ?? "";
-const DEFAULT_APP_ICON_URL = `${BASE_PATH}/icons/serina.png`;
-const DEFAULT_APP_TITLE = "授業復習～瀬利さりな～";
+const DEFAULT_APP_ICON_URL = `${BASE_PATH}/icons/lesson-review-default.png?v=59`;
+const DEFAULT_APP_TITLE = "授業復習";
+const APP_HEADER_TITLE = "授業復習～瀬利さりな～";
 const FAVORITES_SESSION_ID = "__favorites__";
 const APPEARANCE_STORAGE_KEY = "ensuku-basic-flashcards-appearance-v1";
+const SHORTCUT_SETTINGS_STORAGE_KEY = "ensuku-basic-flashcards-shortcut-settings-v1";
 const IMAGE_MARKDOWN_PATTERN = /!\[[^\]]*\]\([^)]+\)/;
 const BASE_LESSON_METADATA: Record<BaseLessonId, AddedLesson> = {
   tenten0718: { id: "tenten0718", date: "7/18", teacher: "てんてん先生", title: "6枚形+完全形何切る？", videoUrl: LESSONS.tenten0718.videoUrl },
@@ -356,7 +358,7 @@ function createSavedQuizSession(
 function HomeHeader({
   compact = false,
   iconUrl = DEFAULT_APP_ICON_URL,
-  title = DEFAULT_APP_TITLE,
+  title = APP_HEADER_TITLE,
   onOpenSettings,
   onOpenAnnouncements,
 }: {
@@ -482,6 +484,24 @@ export default function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(SHORTCUT_SETTINGS_STORAGE_KEY) ?? "{}");
+      const iconUrl = typeof stored?.iconUrl === "string" && /^(https?:|data:image\/)/i.test(stored.iconUrl)
+        ? stored.iconUrl
+        : DEFAULT_APP_ICON_URL;
+      const title = typeof stored?.title === "string" && stored.title.trim() && stored.title.trim().length <= 40
+        ? stored.title.trim()
+        : DEFAULT_APP_TITLE;
+      setAppIconUrl(iconUrl);
+      setAppIconDraft(iconUrl === DEFAULT_APP_ICON_URL ? "" : iconUrl);
+      setAppTitle(title);
+      setAppTitleDraft(title);
+    } catch {
+      // 端末内設定が壊れている場合も標準設定で続ける。
+    }
+  }, []);
+
   const changeAppTone = (tone: AppTone) => {
     setAppTone(tone);
     try { window.localStorage.setItem(APPEARANCE_STORAGE_KEY, tone); } catch { /* その場だけ反映する。 */ }
@@ -513,9 +533,9 @@ export default function Home() {
     fetch(adminApiPath("/api/cards"), { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("問題データを取得できませんでした。");
-        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; deletedLessons?: AddedLesson[]; resources?: LessonResource[]; customCards?: Array<Flashcard & { lessonId: string }>; cardOrders?: Array<{ lessonId: string; id: number; sortOrder: number }>; settings?: { iconUrl?: string; title?: string } }>;
+        return response.json() as Promise<{ overrides?: CardOverride[]; quizOverrides?: QuizOverride[]; lessons?: AddedLesson[]; deletedLessons?: AddedLesson[]; resources?: LessonResource[]; customCards?: Array<Flashcard & { lessonId: string }>; cardOrders?: Array<{ lessonId: string; id: number; sortOrder: number }> }>;
       })
-      .then(({ overrides = [], quizOverrides = [], lessons = [], deletedLessons = [], resources = [], customCards = [], cardOrders = [], settings = {} }) => {
+      .then(({ overrides = [], quizOverrides = [], lessons = [], deletedLessons = [], resources = [], customCards = [], cardOrders = [] }) => {
         const nextCards = withOverrides(overrides);
         const nextCardOrder = cardOrders.reduce<Record<string, number[]>>((grouped, item) => {
           (grouped[item.lessonId] ??= []).push(item.id);
@@ -545,10 +565,6 @@ export default function Home() {
         setAddedLessons(lessons.filter((lesson) => !isBaseLessonId(lesson.id)).sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || right.date.localeCompare(left.date, "ja")));
         setDeletedLessons(deletedLessons);
         setLessonResources(resources);
-        setAppIconUrl(settings.iconUrl || DEFAULT_APP_ICON_URL);
-        setAppIconDraft(settings.iconUrl ?? "");
-        setAppTitle(settings.title || DEFAULT_APP_TITLE);
-        setAppTitleDraft(settings.title || DEFAULT_APP_TITLE);
         setCustomLessonCards(nextCustomCards);
         setIsContentLoading(false);
       })
@@ -1197,39 +1213,30 @@ export default function Home() {
     }
   };
 
-  const saveAppIconUrl = async (
+  const saveAppIconUrl = (
     nextIconUrl = appIconDraft,
     nextTitle = appTitleDraft,
   ) => {
     const iconUrl = nextIconUrl.trim();
     const title = nextTitle.trim();
-    if (iconUrl && !/^https?:\/\//i.test(iconUrl)) {
-      setAdminError("アイコンURLは https:// または http:// で入力してください。");
+    if (iconUrl && !/^(https?:\/\/|data:image\/)/i.test(iconUrl)) {
+      setAdminError("アイコンURLは https://、http://、または選択した画像で設定してください。");
       return;
     }
     if (!title || title.length > 40) {
       setAdminError("ショートカット名は1〜40文字で入力してください。");
       return;
     }
-    setAdminBusyCard(0);
     setAdminError("");
     try {
-      const response = await fetch(adminApiPath("/api/admin/settings"), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ iconUrl, title }),
-      });
-      const payload = await response.json() as { error?: string; settings?: { iconUrl?: string; title?: string } };
-      if (!response.ok || !payload.settings) throw new Error(payload.error ?? "アプリ設定を保存できませんでした。");
-      setAppIconUrl(payload.settings.iconUrl || DEFAULT_APP_ICON_URL);
-      setAppIconDraft(payload.settings.iconUrl ?? "");
-      setAppTitle(payload.settings.title || DEFAULT_APP_TITLE);
-      setAppTitleDraft(payload.settings.title || DEFAULT_APP_TITLE);
-      setAdminNotice("ショートカット名とアプリアイコンを保存しました。iPhoneの既存ショートカットは削除して再追加してください。");
+      window.localStorage.setItem(SHORTCUT_SETTINGS_STORAGE_KEY, JSON.stringify({ iconUrl, title }));
+      setAppIconUrl(iconUrl || DEFAULT_APP_ICON_URL);
+      setAppIconDraft(iconUrl);
+      setAppTitle(title);
+      setAppTitleDraft(title);
+      setAdminNotice("この端末のショートカット名とアプリアイコンを保存しました。iPhoneの既存ショートカットは削除して再追加してください。");
     } catch (error) {
-      setAdminError(error instanceof Error ? error.message : "アプリ設定を保存できませんでした。");
-    } finally {
-      setAdminBusyCard(null);
+      setAdminError(error instanceof Error ? error.message : "この端末にアプリ設定を保存できませんでした。");
     }
   };
 
@@ -1238,16 +1245,18 @@ export default function Home() {
       setAdminError("JPEG・PNG・WebP・GIF画像を選択してください。");
       return;
     }
-    setAdminBusyCard(0);
     setAdminError("");
     try {
-      const response = await fetch(adminApiPath("/api/images"), { method: "POST", headers: { "Content-Type": file.type }, body: file });
-      const payload = await response.json() as { error?: string; url?: string };
-      if (!response.ok || !payload.url) throw new Error(payload.error ?? "画像をアップロードできませんでした。");
-      await saveAppIconUrl(payload.url);
+      if (file.size > 1024 * 1024) throw new Error("端末内に保存するため、アイコン画像は1MB以下にしてください。");
+      const imageUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("画像を読み込めませんでした。"));
+        reader.onerror = () => reject(new Error("画像を読み込めませんでした。"));
+        reader.readAsDataURL(file);
+      });
+      saveAppIconUrl(imageUrl);
     } catch (error) {
       setAdminError(error instanceof Error ? error.message : "画像をアップロードできませんでした。");
-      setAdminBusyCard(null);
     }
   };
 
@@ -2032,7 +2041,7 @@ export default function Home() {
 
       {screen === "home" && (
         <section className={`screen screen--home${isContentLoading ? " screen--home-loading" : ""}`} aria-labelledby="app-title">
-          <HomeHeader iconUrl={appIconUrl} title={appTitle} onOpenSettings={() => setSettingsOpen(true)} onOpenAnnouncements={() => setAnnouncementsOpen(true)} />
+          <HomeHeader iconUrl={appIconUrl} onOpenSettings={() => setSettingsOpen(true)} onOpenAnnouncements={() => setAnnouncementsOpen(true)} />
 
           {settingsOpen && (
             <section className="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -2053,7 +2062,7 @@ export default function Home() {
               </div>
               <div className="settings-group">
                 <h3>ショートカット表示名</h3>
-                <p>iPhoneのBraveでホーム画面へ追加するときに使う名前です。保存後は、すでにあるショートカットを削除して追加し直してください。</p>
+                <p>この端末のiPhone/Braveでホーム画面へ追加するときに使う名前です。他の端末には共有されません。保存後は、すでにあるショートカットを削除して追加し直してください。</p>
                 <input value={appTitleDraft} onChange={(event) => setAppTitleDraft(event.target.value)} maxLength={40} placeholder={DEFAULT_APP_TITLE} aria-label="ショートカット表示名" />
                 <div className="settings-actions">
                   <button type="button" className="settings-save-button" onClick={() => void saveAppIconUrl()} disabled={adminBusyCard !== null}>{adminBusyCard !== null ? "保存中…" : "名前を保存"}</button>
@@ -2062,7 +2071,7 @@ export default function Home() {
               </div>
               <div className="settings-group">
                 <h3>アプリアイコン</h3>
-                <p>画面のアイコンを変更します。ショートカットの絵柄は、変更後に再追加すると更新されます。</p>
+                <p>この端末だけのアイコンです。ショートカットの絵柄は、変更後に再追加すると更新されます。</p>
                 <input value={appIconDraft} onChange={(event) => setAppIconDraft(event.target.value)} placeholder="画像URLを貼り付け" aria-label="アプリアイコンURL" />
                 <div className="settings-actions">
                   <label className="settings-upload-button" title="画像をアップロードしてアイコンに設定"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAppIcon(file); event.currentTarget.value = ""; }} />画像を選ぶ</label>
@@ -2328,7 +2337,7 @@ export default function Home() {
 
       {screen === "quiz-result" && (
         <section className="screen screen--result" aria-labelledby="quiz-result-title">
-          <HomeHeader compact iconUrl={appIconUrl} title={appTitle} />
+          <HomeHeader compact iconUrl={appIconUrl} />
           <div className="result-panel quiz-result-panel">
             <p className="section-kicker">QUIZ COMPLETE</p>
             <h2 id="quiz-result-title">4択クイズ完了！</h2>
@@ -2967,7 +2976,7 @@ export default function Home() {
 
       {screen === "result" && lastSession && (
         <section className="screen screen--result" aria-labelledby="result-title">
-          <HomeHeader compact iconUrl={appIconUrl} title={appTitle} />
+          <HomeHeader compact iconUrl={appIconUrl} />
           <div className="result-panel">
             <p className="section-kicker">SESSION COMPLETE</p>
             <h2 id="result-title">おつかれさまでした</h2>
